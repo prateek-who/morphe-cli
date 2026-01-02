@@ -1,3 +1,10 @@
+# [1.1.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.0.0...v1.1.0-dev.1) (2026-01-02)
+
+
+### Features
+
+* add command option `unsigned` ([#20](https://github.com/MorpheApp/morphe-cli/issues/20)) ([4505091](https://github.com/MorpheApp/morphe-cli/commit/4505091624b854706b39656bae642e5dc1132dcd))
+
 # 1.0.0 (2025-12-08)
 
 
