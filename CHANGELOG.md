@@ -1,3 +1,10 @@
+# [1.1.0-dev.2](https://github.com/MorpheApp/morphe-cli/compare/v1.1.0-dev.1...v1.1.0-dev.2) (2026-01-10)
+
+
+### Bug Fixes
+
+* Use patcher / library 1.0.1 release ([0ca02e9](https://github.com/MorpheApp/morphe-cli/commit/0ca02e920b9e3189ac2b3a18587f0fb9efd0de4e))
+
 # [1.1.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.0.0...v1.1.0-dev.1) (2026-01-02)
 
 
