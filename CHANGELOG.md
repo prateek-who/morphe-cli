@@ -1,3 +1,10 @@
+# [1.2.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.1.0...v1.2.0-dev.1) (2026-01-11)
+
+
+### Features
+
+* Add ability to write patching results to JSON file ([#25](https://github.com/MorpheApp/morphe-cli/issues/25)) ([304b3ea](https://github.com/MorpheApp/morphe-cli/commit/304b3ea4a9ed266d4a02f290dfda24218f3b098a))
+
 # [1.1.0](https://github.com/MorpheApp/morphe-cli/compare/v1.0.0...v1.1.0) (2026-01-10)
 
 
