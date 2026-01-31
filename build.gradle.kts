@@ -38,6 +38,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.picocli)
+    implementation(libs.arsclib)
 
     testImplementation(libs.kotlin.test)
 }

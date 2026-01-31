@@ -14,6 +14,8 @@ import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.loadPatchesFromJar
+import com.reandroid.apk.ApkBundle
+import java.util.zip.ZipFile
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -312,12 +314,54 @@ internal object PatchCommand : Runnable {
 
         val patcherTemporaryFilesPath = temporaryFilesPath.resolve("patcher")
 
+        // Checking if the file is in apkm format (like reddit)
+        var mergedApkToCleanup: File? = null
+        val inputApk = if (apk.extension.equals("apkm", ignoreCase = true)) {
+            logger.info("Detected APKM file, converting to APK...")
+            temporaryFilesPath.mkdirs()
+
+            // Extract APKM to temp directory
+            val extractedDir = temporaryFilesPath.resolve("apkm_extracted")
+            extractedDir.mkdirs()
+
+            ZipFile(apk).use { zip ->
+                zip.entries().asSequence().forEach { entry ->
+                    val outFile = extractedDir.resolve(entry.name)
+                    if (entry.isDirectory) {
+                        outFile.mkdirs()
+                    } else {
+                        outFile.parentFile?.mkdirs()
+                        zip.getInputStream(entry).use { input ->
+                            outFile.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Save merged APK to output directory (outside temp structure for testing, but ideally this is in the temp folder too and gets cleaned)
+            val outputApk = outputFilePath.parentFile.resolve("${apk.nameWithoutExtension}-merged.apk")
+
+            // Use ARSCLib to merge split APKs
+            val bundle = ApkBundle()
+            bundle.loadApkDirectory(extractedDir)
+            val mergedModule = bundle.mergeModules()
+            mergedModule.writeApk(outputApk)
+
+            logger.info("Conversion complete: ${outputApk.path}")
+            mergedApkToCleanup = outputApk
+            outputApk
+        } else {
+            apk
+        }
+
         val patchingResult = PatchingResult()
 
         try {
             val (packageName, patcherResult) = Patcher(
                 PatcherConfig(
-                    apk,
+                    inputApk,
                     patcherTemporaryFilesPath,
                     aaptBinaryPath?.path,
                     patcherTemporaryFilesPath.absolutePath,
@@ -377,7 +421,7 @@ internal object PatchCommand : Runnable {
 
             // region Save.
 
-            apk.copyTo(temporaryFilesPath.resolve(apk.name), overwrite = true).apply {
+            inputApk.copyTo(temporaryFilesPath.resolve(inputApk.name), overwrite = true).apply {
                 patchingResult.addStepResult(
                     PatchingStep.REBUILDING,
                     {
@@ -406,6 +450,7 @@ internal object PatchCommand : Runnable {
                     patchedApkFile.copyTo(outputFilePath, overwrite = true)
                 }
             }
+
             logger.info("Saved to $outputFilePath")
 
             // endregion
@@ -447,6 +492,13 @@ internal object PatchCommand : Runnable {
         if (purge) {
             logger.info("Purging temporary files")
             purge(temporaryFilesPath)
+        }
+
+        // Clean up merged APK if we created one from APKM
+        mergedApkToCleanup?.let {
+            if (it.delete()) {
+                logger.info("Cleaned up merged APK: ${it.path}")
+            }
         }
     }
 
