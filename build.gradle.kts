@@ -38,7 +38,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.picocli)
-    implementation(libs.arsclib)
+    implementation(files("libs/APKEditor-1.4.7.jar"))
 
     testImplementation(libs.kotlin.test)
 }

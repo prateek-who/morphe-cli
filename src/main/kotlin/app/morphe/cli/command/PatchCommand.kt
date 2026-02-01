@@ -14,8 +14,8 @@ import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.loadPatchesFromJar
-import com.reandroid.apk.ApkBundle
-import java.util.zip.ZipFile
+import com.reandroid.apkeditor.merge.Merger
+import com.reandroid.apkeditor.merge.MergerOptions
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -262,7 +262,7 @@ internal object PatchCommand : Runnable {
 
         val outputFilePath =
             outputFilePath ?: File("").absoluteFile.resolve(
-                "${apk.nameWithoutExtension}-patched.${apk.extension}",
+                "${apk.nameWithoutExtension}-patched.apk",
             )
 
         val temporaryFilesPath =
@@ -318,36 +318,17 @@ internal object PatchCommand : Runnable {
         var mergedApkToCleanup: File? = null
         val inputApk = if (apk.extension.equals("apkm", ignoreCase = true)) {
             logger.info("Detected APKM file, converting to APK...")
-            temporaryFilesPath.mkdirs()
 
-            // Extract APKM to temp directory
-            val extractedDir = temporaryFilesPath.resolve("apkm_extracted")
-            extractedDir.mkdirs()
-
-            ZipFile(apk).use { zip ->
-                zip.entries().asSequence().forEach { entry ->
-                    val outFile = extractedDir.resolve(entry.name)
-                    if (entry.isDirectory) {
-                        outFile.mkdirs()
-                    } else {
-                        outFile.parentFile?.mkdirs()
-                        zip.getInputStream(entry).use { input ->
-                            outFile.outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Save merged APK to output directory (outside temp structure for testing, but ideally this is in the temp folder too and gets cleaned)
+            // Save merged APK to output directory (will be cleaned up after patching)
             val outputApk = outputFilePath.parentFile.resolve("${apk.nameWithoutExtension}-merged.apk")
 
-            // Use ARSCLib to merge split APKs
-            val bundle = ApkBundle()
-            bundle.loadApkDirectory(extractedDir)
-            val mergedModule = bundle.mergeModules()
-            mergedModule.writeApk(outputApk)
+            // Use APKEditor's Merger directly (handles extraction and merging)
+            val mergerOptions = MergerOptions().apply {
+                inputFile = apk  // Original APKM file
+                outputFile = outputApk
+                cleanMeta = true
+            }
+            Merger(mergerOptions).run()
 
             logger.info("Conversion complete: ${outputApk.path}")
             mergedApkToCleanup = outputApk
