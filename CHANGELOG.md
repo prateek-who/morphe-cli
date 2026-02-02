@@ -1,3 +1,17 @@
+# [1.2.0-dev.2](https://github.com/MorpheApp/morphe-cli/compare/v1.2.0-dev.1...v1.2.0-dev.2) (2026-02-02)
+
+
+### Features
+
+* Update to Morphe patcher / library 1.1.0 ([ef8e95d](https://github.com/MorpheApp/morphe-cli/commit/ef8e95debbcd29ecfed76b4a740d7c05ffa01709))
+
+# [1.2.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.1.0...v1.2.0-dev.1) (2026-01-11)
+
+
+### Features
+
+* Add ability to write patching results to JSON file ([#25](https://github.com/MorpheApp/morphe-cli/issues/25)) ([304b3ea](https://github.com/MorpheApp/morphe-cli/commit/304b3ea4a9ed266d4a02f290dfda24218f3b098a))
+
 # [1.1.0](https://github.com/MorpheApp/morphe-cli/compare/v1.0.0...v1.1.0) (2026-01-10)
 
 
