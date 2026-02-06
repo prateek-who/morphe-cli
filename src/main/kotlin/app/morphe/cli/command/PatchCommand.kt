@@ -317,7 +317,7 @@ internal object PatchCommand : Runnable {
         // Checking if the file is in apkm format (like reddit)
         var mergedApkToCleanup: File? = null
         val inputApk = if (apk.extension.equals("apkm", ignoreCase = true)) {
-            logger.info("Detected APKM file, converting to APK...")
+            logger.info("Merging APKM bundle")
 
             // Save merged APK to output directory (will be cleaned up after patching)
             val outputApk = outputFilePath.parentFile.resolve("${apk.nameWithoutExtension}-merged.apk")
@@ -330,7 +330,6 @@ internal object PatchCommand : Runnable {
             }
             Merger(mergerOptions).run()
 
-            logger.info("Conversion complete: ${outputApk.path}")
             mergedApkToCleanup = outputApk
             outputApk
         } else {
