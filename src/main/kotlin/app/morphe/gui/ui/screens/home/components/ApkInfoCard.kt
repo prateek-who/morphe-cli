@@ -19,9 +19,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.morphe.morphe_cli.generated.resources.Res
-import app.morphe.morphe_cli.generated.resources.reddit
-import app.morphe.morphe_cli.generated.resources.youtube
-import app.morphe.morphe_cli.generated.resources.youtube_music
 import org.jetbrains.compose.resources.painterResource
 import app.morphe.gui.data.constants.AppConstants
 import app.morphe.gui.ui.screens.home.ApkInfo
@@ -59,11 +56,11 @@ fun ApkInfoCard(
                 ) {
                     // App icon - determine from appType or packageName
                     val iconRes = when {
-                        apkInfo.appType == AppType.YOUTUBE -> Res.drawable.youtube
-                        apkInfo.appType == AppType.YOUTUBE_MUSIC -> Res.drawable.youtube_music
-                        apkInfo.packageName == AppConstants.YouTube.PACKAGE_NAME -> Res.drawable.youtube
-                        apkInfo.packageName == AppConstants.YouTubeMusic.PACKAGE_NAME -> Res.drawable.youtube_music
-                        apkInfo.packageName == AppConstants.Reddit.PACKAGE_NAME -> Res.drawable.reddit
+                        apkInfo.appType == AppType.YOUTUBE -> null
+                        apkInfo.appType == AppType.YOUTUBE_MUSIC -> null
+                        apkInfo.packageName == AppConstants.YouTube.PACKAGE_NAME -> null
+                        apkInfo.packageName == AppConstants.YouTubeMusic.PACKAGE_NAME -> null
+                        apkInfo.packageName == AppConstants.Reddit.PACKAGE_NAME -> null
                         else -> null
                     }
 
