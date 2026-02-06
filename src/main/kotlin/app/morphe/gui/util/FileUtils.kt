@@ -3,6 +3,7 @@ package app.morphe.gui.util
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.zip.ZipFile
 
 /**
  * Platform-agnostic file utilities.
@@ -141,9 +142,32 @@ object FileUtils {
     }
 
     /**
-     * Check if file is an APK.
+     * Check if file is an APK or APKM.
      */
     fun isApkFile(file: File): Boolean {
-        return file.isFile && getExtension(file) == "apk"
+        val ext = getExtension(file)
+        return file.isFile && (ext == "apk" || ext == "apkm")
+    }
+
+    /**
+     * Extract base.apk from an .apkm file to a temp directory.
+     * Returns the extracted base.apk file, or null if extraction fails.
+     * Caller is responsible for cleaning up the returned temp file.
+     */
+    fun extractBaseApkFromApkm(apkmFile: File): File? {
+        return try {
+            ZipFile(apkmFile).use { zip ->
+                val baseEntry = zip.getEntry("base.apk") ?: return null
+                val tempFile = File(getTempDir(), "base-${System.currentTimeMillis()}.apk")
+                zip.getInputStream(baseEntry).use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                tempFile
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }
