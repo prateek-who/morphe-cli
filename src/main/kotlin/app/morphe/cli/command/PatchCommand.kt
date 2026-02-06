@@ -476,8 +476,8 @@ internal object PatchCommand : Runnable {
 
         // Clean up merged APK if we created one from APKM
         mergedApkToCleanup?.let {
-            if (it.delete()) {
-                logger.info("Cleaned up merged APK: ${it.path}")
+            if (!it.delete()) {
+                logger.warning("Could not clean up merged APK: ${it.path}")
             }
         }
     }
