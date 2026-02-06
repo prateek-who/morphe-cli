@@ -556,7 +556,7 @@ private fun DropPromptSection(
         Spacer(modifier = Modifier.height(if (isCompact) 12.dp else 16.dp))
 
         Text(
-            text = "Supported: .apk files from APKMirror",
+            text = "Supported: .apk and .apkm files from APKMirror",
             fontSize = if (isCompact) 11.sp else 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
@@ -1100,7 +1100,7 @@ private fun DragOverlay() {
 private fun openFilePicker(): File? {
     val fileDialog = FileDialog(null as Frame?, "Select APK File", FileDialog.LOAD).apply {
         isMultipleMode = false
-        setFilenameFilter { _, name -> name.lowercase().endsWith(".apk") }
+        setFilenameFilter { _, name -> name.lowercase().let { it.endsWith(".apk") || it.endsWith(".apkm") } }
         isVisible = true
     }
 

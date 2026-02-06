@@ -124,7 +124,6 @@ object AppConstants {
 //            "Premium heading" to "Changes the YouTube logo/heading appearance",
 //            "Navigation buttons" to "Modifies bottom navigation bar layout",
 //            "Spoof client" to "May cause playback issues on some devices",
-//            "Change start page" to "Modifies the default landing page",
 //            "Disable auto captions" to "Some users rely on auto-generated captions"
         )
 
@@ -137,12 +136,21 @@ object AppConstants {
         )
 
         /**
+         * Patches commonly disabled for Reddit.
+         */
+        val REDDIT_COMMONLY_DISABLED: List<Pair<String, String>> = listOf(
+            "Change package name" to "Doesn't work for reddit",
+            "Spoof signature" to "May cause issues on some devices"
+        )
+
+        /**
          * Get commonly disabled patches for a package.
          */
         fun getCommonlyDisabled(packageName: String): List<Pair<String, String>> {
             return when (packageName) {
                 YouTube.PACKAGE_NAME -> YOUTUBE_COMMONLY_DISABLED
                 YouTubeMusic.PACKAGE_NAME -> YOUTUBE_MUSIC_COMMONLY_DISABLED
+                Reddit.PACKAGE_NAME -> REDDIT_COMMONLY_DISABLED
                 else -> emptyList()
             }
         }

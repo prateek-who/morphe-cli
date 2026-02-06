@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import app.morphe.morphe_cli.generated.resources.Res
+import app.morphe.morphe_cli.generated.resources.morphe
 import app.morphe.gui.data.constants.AppConstants
 import app.morphe.gui.data.repository.ConfigRepository
 import app.morphe.gui.data.repository.PatchRepository
@@ -39,7 +40,10 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import app.morphe.gui.ui.components.SettingsButton
 import app.morphe.gui.ui.theme.MorpheColors
+import androidx.compose.runtime.rememberCoroutineScope
+import app.morphe.gui.util.AdbDevice
 import app.morphe.gui.util.AdbManager
+import kotlinx.coroutines.launch
 import app.morphe.gui.util.ChecksumStatus
 import java.awt.Desktop
 import java.awt.datatransfer.DataFlavor
@@ -97,7 +101,7 @@ fun QuickPatchContent(viewModel: QuickPatchViewModel) {
                     if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                         @Suppress("UNCHECKED_CAST")
                         val files = transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>
-                        val apkFile = files.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+                        val apkFile = files.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) || it.name.endsWith(".apkm", ignoreCase = true) }
                         if (apkFile != null) {
                             viewModel.onFileSelected(apkFile)
                             true
@@ -123,132 +127,120 @@ fun QuickPatchContent(viewModel: QuickPatchViewModel) {
                 target = dragAndDropTarget
             )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Branding
+                Spacer(modifier = Modifier.height(8.dp))
+                Image(
+                    painter = painterResource(Res.drawable.morphe),
+                    contentDescription = "Morphe Logo",
+                    modifier = Modifier.height(48.dp)
+                )
                 Text(
-                    text = "Morphe Quick Patch",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = "Quick Patch",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Mode indicator
-                    Surface(
-                        color = MorpheColors.Blue.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text(
-                            text = "QUICK MODE",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MorpheColors.Blue,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    // Settings button
-                    SettingsButton()
-                }
-            }
+                // Main content based on phase
+                // Remember last valid data for safe animation transitions
+                val lastApkInfo = remember(uiState.apkInfo) { uiState.apkInfo }
+                val lastOutputPath = remember(uiState.outputPath) { uiState.outputPath }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Main content based on phase
-            // Remember last valid data for safe animation transitions
-            val lastApkInfo = remember(uiState.apkInfo) { uiState.apkInfo }
-            val lastOutputPath = remember(uiState.outputPath) { uiState.outputPath }
-
-            AnimatedContent(
-                targetState = uiState.phase,
-                modifier = Modifier.weight(1f)
-            ) { phase ->
-                when (phase) {
-                    QuickPatchPhase.IDLE, QuickPatchPhase.ANALYZING -> {
-                        IdleContent(
-                            isAnalyzing = phase == QuickPatchPhase.ANALYZING,
-                            isDragHovering = uiState.isDragHovering,
-                            error = uiState.error,
-                            onFileSelected = { viewModel.onFileSelected(it) },
-                            onDragHover = { viewModel.setDragHover(it) },
-                            onClearError = { viewModel.clearError() }
-                        )
-                    }
-                    QuickPatchPhase.READY -> {
-                        // Use current or last known apkInfo to prevent crash during animation
-                        val apkInfo = uiState.apkInfo ?: lastApkInfo
-                        if (apkInfo != null) {
-                            ReadyContent(
-                                apkInfo = apkInfo,
+                AnimatedContent(
+                    targetState = uiState.phase,
+                    modifier = Modifier.weight(1f)
+                ) { phase ->
+                    when (phase) {
+                        QuickPatchPhase.IDLE, QuickPatchPhase.ANALYZING -> {
+                            IdleContent(
+                                isAnalyzing = phase == QuickPatchPhase.ANALYZING,
+                                isDragHovering = uiState.isDragHovering,
                                 error = uiState.error,
-                                onPatch = { viewModel.startPatching() },
-                                onClear = { viewModel.reset() },
+                                onFileSelected = { viewModel.onFileSelected(it) },
+                                onDragHover = { viewModel.setDragHover(it) },
                                 onClearError = { viewModel.clearError() }
                             )
                         }
-                    }
-                    QuickPatchPhase.DOWNLOADING, QuickPatchPhase.PATCHING -> {
-                        PatchingContent(
-                            phase = phase,
-                            progress = uiState.progress,
-                            statusMessage = uiState.statusMessage,
-                            onCancel = { viewModel.cancelPatching() }
-                        )
-                    }
-                    QuickPatchPhase.COMPLETED -> {
-                        val apkInfo = uiState.apkInfo ?: lastApkInfo
-                        val outputPath = uiState.outputPath ?: lastOutputPath
-                        if (apkInfo != null && outputPath != null) {
-                            CompletedContent(
-                                outputPath = outputPath,
-                                apkInfo = apkInfo,
-                                onPatchAnother = { viewModel.reset() }
+                        QuickPatchPhase.READY -> {
+                            // Use current or last known apkInfo to prevent crash during animation
+                            val apkInfo = uiState.apkInfo ?: lastApkInfo
+                            if (apkInfo != null) {
+                                ReadyContent(
+                                    apkInfo = apkInfo,
+                                    error = uiState.error,
+                                    onPatch = { viewModel.startPatching() },
+                                    onClear = { viewModel.reset() },
+                                    onClearError = { viewModel.clearError() }
+                                )
+                            }
+                        }
+                        QuickPatchPhase.DOWNLOADING, QuickPatchPhase.PATCHING -> {
+                            PatchingContent(
+                                phase = phase,
+                                progress = uiState.progress,
+                                statusMessage = uiState.statusMessage,
+                                onCancel = { viewModel.cancelPatching() }
                             )
+                        }
+                        QuickPatchPhase.COMPLETED -> {
+                            val apkInfo = uiState.apkInfo ?: lastApkInfo
+                            val outputPath = uiState.outputPath ?: lastOutputPath
+                            if (apkInfo != null && outputPath != null) {
+                                CompletedContent(
+                                    outputPath = outputPath,
+                                    apkInfo = apkInfo,
+                                    onPatchAnother = { viewModel.reset() }
+                                )
+                            }
                         }
                     }
                 }
+
+                // Bottom app cards (only show in IDLE phase)
+                if (uiState.phase == QuickPatchPhase.IDLE) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SupportedAppsRow(
+                        supportedApps = uiState.supportedApps,
+                        isLoading = uiState.isLoadingPatches,
+                        loadError = uiState.patchLoadError,
+                        patchesVersion = uiState.patchesVersion,
+                        onOpenUrl = { url -> uriHandler.openUri(url) },
+                        onRetry = { viewModel.retryLoadPatches() }
+                    )
+                }
             }
 
-            // Bottom app cards (only show in IDLE phase)
-            if (uiState.phase == QuickPatchPhase.IDLE) {
-                Spacer(modifier = Modifier.height(16.dp))
-                SupportedAppsRow(
-                    supportedApps = uiState.supportedApps,
-                    isLoading = uiState.isLoadingPatches,
-                    patchesVersion = uiState.patchesVersion,
-                    onOpenUrl = { url -> uriHandler.openUri(url) }
-                )
-            }
-        }
-
-        // Error snackbar
-        uiState.error?.let { error ->
-            Snackbar(
+            // Settings button in top-right corner
+            SettingsButton(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp),
-                action = {
-                    TextButton(onClick = { viewModel.clearError() }) {
-                        Text("Dismiss", color = MaterialTheme.colorScheme.inversePrimary)
-                    }
-                },
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer
-            ) {
-                Text(error)
+                    .align(Alignment.TopEnd)
+                    .padding(24.dp)
+            )
+
+            // Error snackbar
+            uiState.error?.let { error ->
+                Snackbar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                    action = {
+                        TextButton(onClick = { viewModel.clearError() }) {
+                            Text("Dismiss", color = MaterialTheme.colorScheme.inversePrimary)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ) {
+                    Text(error)
+                }
             }
         }
     }
@@ -350,7 +342,7 @@ private fun ReadyContent(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // App icon
+                // App icon: first letter of display name
                 Box(
                     modifier = Modifier
                         .size(48.dp)
@@ -358,18 +350,12 @@ private fun ReadyContent(
                         .background(Color.White),
                     contentAlignment = Alignment.Center
                 ) {
-//                    Image(
-//                        painter = painterResource(
-//                            when (apkInfo.packageName) {
-//                                AppConstants.YouTube.PACKAGE_NAME -> Res.drawable.youtube
-//                                AppConstants.YouTubeMusic.PACKAGE_NAME -> Res.drawable.youtube_music
-//                                AppConstants.Reddit.PACKAGE_NAME -> Res.drawable.reddit
-//                                else -> Res.drawable.youtube // Fallback
-//                            }
-//                        ),
-//                        contentDescription = "${apkInfo.displayName} icon",
-//                        modifier = Modifier.size(36.dp)
-//                    )
+                    Text(
+                        text = apkInfo.displayName.first().toString(),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MorpheColors.Blue
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(16.dp))
@@ -536,11 +522,39 @@ private fun CompletedContent(
     onPatchAnother: () -> Unit
 ) {
     val outputFile = File(outputPath)
+    val scope = rememberCoroutineScope()
     val adbManager = remember { AdbManager() }
     var isAdbAvailable by remember { mutableStateOf<Boolean?>(null) }
+    var connectedDevices by remember { mutableStateOf<List<AdbDevice>>(emptyList()) }
+    var selectedDevice by remember { mutableStateOf<AdbDevice?>(null) }
+    var isInstalling by remember { mutableStateOf(false) }
+    var installError by remember { mutableStateOf<String?>(null) }
+    var installSuccess by remember { mutableStateOf(false) }
+
+    fun refreshDevices() {
+        scope.launch {
+            val result = adbManager.getConnectedDevices()
+            result.fold(
+                onSuccess = { devices ->
+                    connectedDevices = devices
+                    val readyDevices = devices.filter { it.isReady }
+                    if (readyDevices.size == 1) {
+                        selectedDevice = readyDevices.first()
+                    }
+                },
+                onFailure = {
+                    connectedDevices = emptyList()
+                    selectedDevice = null
+                }
+            )
+        }
+    }
 
     LaunchedEffect(Unit) {
         isAdbAvailable = adbManager.isAdbAvailable()
+        if (isAdbAvailable == true) {
+            refreshDevices()
+        }
     }
 
     Column(
@@ -621,12 +635,90 @@ private fun CompletedContent(
         }
 
         if (isAdbAvailable == true) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Connect your device via USB to install with ADB",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            val readyDevices = connectedDevices.filter { it.isReady }
+
+            if (installSuccess) {
+                Surface(
+                    color = MorpheColors.Teal.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Installed successfully!",
+                        fontSize = 13.sp,
+                        color = MorpheColors.Teal,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            } else if (isInstalling) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MorpheColors.Blue
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Installing...",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (readyDevices.isNotEmpty()) {
+                val device = selectedDevice ?: readyDevices.first()
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isInstalling = true
+                            installError = null
+                            val result = adbManager.installApk(
+                                apkPath = outputPath,
+                                deviceId = device.id
+                            )
+                            result.fold(
+                                onSuccess = { installSuccess = true },
+                                onFailure = { installError = it.message }
+                            )
+                            isInstalling = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MorpheColors.Teal),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhoneAndroid,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Install on ${device.displayName}")
+                }
+            } else {
+                Text(
+                    text = "Connect your device via USB to install with ADB",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                TextButton(onClick = { refreshDevices() }) {
+                    Text("Refresh", fontSize = 12.sp)
+                }
+            }
+
+            installError?.let { error ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = error,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
@@ -635,8 +727,10 @@ private fun CompletedContent(
 private fun SupportedAppsRow(
     supportedApps: List<app.morphe.gui.data.model.SupportedApp>,
     isLoading: Boolean,
+    loadError: String? = null,
     patchesVersion: String?,
-    onOpenUrl: (String) -> Unit
+    onOpenUrl: (String) -> Unit,
+    onRetry: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -681,13 +775,27 @@ private fun SupportedAppsRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        } else if (supportedApps.isEmpty()) {
-            // No apps loaded
-            Text(
-                text = "Could not load supported apps",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        } else if (loadError != null || supportedApps.isEmpty()) {
+            // Error or no apps loaded
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = loadError ?: "Could not load supported apps",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedButton(
+                    onClick = onRetry,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("Retry", fontSize = 12.sp)
+                }
+            }
         } else {
             // Show supported apps dynamically
             Row(

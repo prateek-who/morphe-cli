@@ -429,14 +429,26 @@ private fun PatchListItem(
                     }
                 }
 
-                // Show options indicator if patch has options
+                // Show options if patch has any
                 if (patch.options.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${patch.options.size} option${if (patch.options.size > 1) "s" else ""} available",
-                        fontSize = 11.sp,
-                        color = MorpheColors.Teal
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        patch.options.forEach { option ->
+                            Surface(
+                                color = MorpheColors.Teal.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = option.title.ifBlank { option.key },
+                                    fontSize = 10.sp,
+                                    color = MorpheColors.Teal,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -568,9 +580,11 @@ private fun CommandPreview(
     modifier: Modifier = Modifier
 ) {
     val terminalBackground = Color(0xFF1E1E1E)
-    val terminalGreen = Color(0xFF4EC9B0)
+//    val terminalGreen = Color(0xFF4EC9B0)
+    val terminalGreen = Color(0xFF6A9955)
     val terminalText = Color(0xFFD4D4D4)
     val terminalDim = Color(0xFF6A9955)
+//    val terminalDim = Color(0xFF4EC9B0)
 
     var showCopied by remember { mutableStateOf(false) }
 
@@ -613,8 +627,8 @@ private fun CommandPreview(
                     )
                     Text(
                         text = "Command Preview",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
                         color = terminalGreen
                     )
                     Icon(
@@ -652,7 +666,8 @@ private fun CommandPreview(
                             )
                             Text(
                                 text = if (showCopied) "Copied!" else "Copy",
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = if (showCopied) terminalGreen else terminalDim
                             )
                         }
@@ -666,8 +681,9 @@ private fun CommandPreview(
                             shape = RoundedCornerShape(4.dp)
                         ) {
                             Text(
-                                text = if (cleanMode) "compact" else "expand",
-                                fontSize = 10.sp,
+                                text = if (cleanMode) "Compact" else "Expand",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = terminalDim,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )

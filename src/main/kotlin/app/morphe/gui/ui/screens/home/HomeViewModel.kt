@@ -218,7 +218,7 @@ class HomeViewModel(
             onFileSelected(apkFile)
         } else {
             _uiState.value = _uiState.value.copy(
-                error = "No valid APK file found. Please drop an .apk file.",
+                error = "Please drop a valid .apk or .apkm file",
                 isReady = false
             )
         }
@@ -255,7 +255,7 @@ class HomeViewModel(
         }
 
         if (!FileUtils.isApkFile(file)) {
-            return ApkValidationResult(false, errorMessage = "File must have .apk extension")
+            return ApkValidationResult(false, errorMessage = "File must have .apk or .apkm extension")
         }
 
         if (file.length() < 1024) {
@@ -277,8 +277,19 @@ class HomeViewModel(
      * This works with APKs from any source, not just APKMirror.
      */
     private fun parseApkManifest(file: File): ApkInfo? {
+        // For .apkm files, extract base.apk first
+        val isApkm = file.extension.equals("apkm", ignoreCase = true)
+        val apkToParse = if (isApkm) {
+            FileUtils.extractBaseApkFromApkm(file) ?: run {
+                Logger.error("Failed to extract base.apk from APKM: ${file.name}")
+                return null
+            }
+        } else {
+            file
+        }
+
         return try {
-            ApkFile(file).use { apk ->
+            ApkFile(apkToParse).use { apk ->
                 val meta = apk.apkMeta
 
                 val packageName = meta.packageName
@@ -321,7 +332,7 @@ class HomeViewModel(
                 }
 
                 // Get supported architectures from native libraries in the APK
-                val architectures = extractArchitectures(file)
+                val architectures = extractArchitectures(apkToParse)
 
                 // Verify checksum (still uses AppConstants for now)
                 val checksumStatus = verifyChecksum(file, packageName, versionName, architectures, suggestedVersion)
@@ -347,6 +358,8 @@ class HomeViewModel(
         } catch (e: Exception) {
             Logger.error("Failed to parse APK manifest", e)
             null
+        } finally {
+            if (isApkm) apkToParse.delete()
         }
     }
 
