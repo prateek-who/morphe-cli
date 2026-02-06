@@ -1,5 +1,7 @@
 package app.morphe.gui.data.model
 
+import app.morphe.gui.data.constants.AppConstants
+
 /**
  * Represents a supported app extracted dynamically from patch metadata.
  * This is populated by parsing the .mpp file's compatible packages.
@@ -30,12 +32,13 @@ data class SupportedApp(
 
         /**
          * Get APK Mirror URL for a package name.
+         * Uses the same version-specific URLs from AppConstants.
          */
         fun getApkMirrorUrl(packageName: String): String? {
             return when (packageName) {
-                "com.google.android.youtube" -> "https://www.apkmirror.com/apk/google-inc/youtube/"
-                "com.google.android.apps.youtube.music" -> "https://www.apkmirror.com/apk/google-inc/youtube-music/"
-                "com.reddit.frontpage" -> "https://www.apkmirror.com/apk/redditinc/reddit/"
+                AppConstants.YouTube.PACKAGE_NAME -> AppConstants.YouTube.APK_MIRROR_URL
+                AppConstants.YouTubeMusic.PACKAGE_NAME -> AppConstants.YouTubeMusic.APK_MIRROR_URL
+                AppConstants.Reddit.PACKAGE_NAME -> AppConstants.Reddit.APK_MIRROR_URL
                 else -> null
             }
         }

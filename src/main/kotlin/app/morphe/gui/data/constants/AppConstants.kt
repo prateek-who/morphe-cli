@@ -8,7 +8,7 @@ object AppConstants {
 
     // ==================== APP INFO ====================
     const val APP_NAME = "Morphe GUI"
-    const val APP_VERSION = "1.4.0" // Keep in sync with build.gradle.kts
+    const val APP_VERSION = "1.4.0" // Keep in sync with the release version numbers
 
     // ==================== YOUTUBE ====================
     object YouTube {
@@ -41,7 +41,7 @@ object AppConstants {
         const val DISPLAY_NAME = "Reddit"
         const val PACKAGE_NAME = "com.reddit.frontpage"
         // APKMirror URL - to be updated with specific version when known
-        const val APK_MIRROR_URL = "https://www.apkmirror.com/apk/redditinc/reddit/"
+        const val APK_MIRROR_URL = "https://www.apkmirror.com/apk/redditinc/reddit/reddit-2026-03-0-release/"
     }
 
     /**
