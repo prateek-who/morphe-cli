@@ -23,9 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.morphe.morphe_cli.generated.resources.Res
 import app.morphe.morphe_cli.generated.resources.morphe
-import app.morphe.morphe_cli.generated.resources.reddit
-import app.morphe.morphe_cli.generated.resources.youtube
-import app.morphe.morphe_cli.generated.resources.youtube_music
 import org.jetbrains.compose.resources.painterResource
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
@@ -119,121 +116,111 @@ fun HomeScreenContent(
 
             val scrollState = rememberScrollState()
 
-            // Estimate content heights to calculate flexible spacer
-            val brandingHeight = if (isCompact) 48.dp else 60.dp
-            val topSpacing = if (isSmall) 24.dp else 48.dp  // top spacer + after branding
-            val middleContentHeight = if (uiState.apkInfo != null) {
-                // ApkInfoCard (~250dp) + buttons (~72dp) + spacer
-                if (isCompact) 340.dp else 380.dp
-            } else {
-                // Drop prompt section
-                if (isCompact) 160.dp else 200.dp
-            }
-            val supportedAppsHeight = if (isCompact) 220.dp else 280.dp
-            val bottomSpacing = if (isSmall) 24.dp else 40.dp  // spacers around supported apps
-
-            val totalFixedHeight = brandingHeight + topSpacing + middleContentHeight + supportedAppsHeight + bottomSpacing + (padding * 2)
-
-            // Extra space to push supported apps to bottom on large screens
-            val extraSpace = (maxHeight - totalFixedHeight).coerceAtLeast(0.dp)
-
             Box(modifier = Modifier.fillMaxSize()) {
-                // Always scrollable - but on large screens extraSpace fills the gap
+                // SpaceBetween + fillMaxSize pushes supported apps to the bottom
+                // when there's room; verticalScroll kicks in when content overflows.
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(scrollState)
                         .padding(padding),
+                    verticalArrangement = Arrangement.SpaceBetween,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 16.dp))
-                    BrandingSection(isCompact = isCompact)
+                    // Top group: branding + patches version + middle content
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 16.dp))
+                        BrandingSection(isCompact = isCompact)
 
-                    // Patches version selector card - right under logo
-                    if (!uiState.isLoadingPatches && uiState.patchesVersion != null) {
-                        Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
-                        PatchesVersionCard(
-                            patchesVersion = uiState.patchesVersion!!,
-                            isLatest = uiState.isUsingLatestPatches,
-                            onChangePatchesClick = {
-                                // Navigate to patches version selection screen
-                                // Pass empty apk info since user hasn't selected an APK yet
-                                navigator.push(PatchesScreen(
-                                    apkPath = uiState.apkInfo?.filePath ?: "",
-                                    apkName = uiState.apkInfo?.appName ?: "Select APK first"
-                                ))
-                            },
-                            isCompact = isCompact,
-                            modifier = Modifier
-                                .widthIn(max = 400.dp)
-                                .padding(horizontal = if (isCompact) 8.dp else 16.dp)
-                        )
-                    } else if (uiState.isLoadingPatches) {
-                        Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp,
-                                color = MorpheColors.Blue
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Loading patches...",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(if (isSmall) 16.dp else 32.dp))
-
-                    MiddleContent(
-                        uiState = uiState,
-                        isCompact = isCompact,
-                        patchesLoaded = !uiState.isLoadingPatches && viewModel.getCachedPatchesFile() != null,
-                        onClearClick = { viewModel.clearSelection() },
-                        onChangeClick = {
-                            openFilePicker()?.let { file ->
-                                viewModel.onFileSelected(file)
-                            }
-                        },
-                        onContinueClick = {
-                            val patchesFile = viewModel.getCachedPatchesFile()
-                            if (patchesFile == null) {
-                                // Patches not ready yet
-                                return@MiddleContent
-                            }
-
-                            val versionStatus = uiState.apkInfo?.versionStatus
-                            if (versionStatus != null && versionStatus != VersionStatus.EXACT_MATCH && versionStatus != VersionStatus.UNKNOWN) {
-                                showVersionWarningDialog = true
-                            } else {
-                                uiState.apkInfo?.let { info ->
-                                    navigator.push(PatchSelectionScreen(
-                                        apkPath = info.filePath,
-                                        apkName = info.appName,
-                                        patchesFilePath = patchesFile.absolutePath
+                        // Patches version selector card - right under logo
+                        if (!uiState.isLoadingPatches && uiState.patchesVersion != null) {
+                            Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
+                            PatchesVersionCard(
+                                patchesVersion = uiState.patchesVersion!!,
+                                isLatest = uiState.isUsingLatestPatches,
+                                onChangePatchesClick = {
+                                    // Navigate to patches version selection screen
+                                    // Pass empty apk info since user hasn't selected an APK yet
+                                    navigator.push(PatchesScreen(
+                                        apkPath = uiState.apkInfo?.filePath ?: "",
+                                        apkName = uiState.apkInfo?.appName ?: "Select APK first"
                                     ))
+                                },
+                                isCompact = isCompact,
+                                modifier = Modifier
+                                    .widthIn(max = 400.dp)
+                                    .padding(horizontal = if (isCompact) 8.dp else 16.dp)
+                            )
+                        } else if (uiState.isLoadingPatches) {
+                            Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MorpheColors.Blue
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Loading patches...",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(if (isSmall) 16.dp else 32.dp))
+
+                        MiddleContent(
+                            uiState = uiState,
+                            isCompact = isCompact,
+                            patchesLoaded = !uiState.isLoadingPatches && viewModel.getCachedPatchesFile() != null,
+                            onClearClick = { viewModel.clearSelection() },
+                            onChangeClick = {
+                                openFilePicker()?.let { file ->
+                                    viewModel.onFileSelected(file)
+                                }
+                            },
+                            onContinueClick = {
+                                val patchesFile = viewModel.getCachedPatchesFile()
+                                if (patchesFile == null) {
+                                    // Patches not ready yet
+                                    return@MiddleContent
+                                }
+
+                                val versionStatus = uiState.apkInfo?.versionStatus
+                                if (versionStatus != null && versionStatus != VersionStatus.EXACT_MATCH && versionStatus != VersionStatus.UNKNOWN) {
+                                    showVersionWarningDialog = true
+                                } else {
+                                    uiState.apkInfo?.let { info ->
+                                        navigator.push(PatchSelectionScreen(
+                                            apkPath = info.filePath,
+                                            apkName = info.appName,
+                                            patchesFilePath = patchesFile.absolutePath
+                                        ))
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
 
-                    // Flexible spacer - expands on large screens, minimal on small screens
-                    Spacer(modifier = Modifier.height(extraSpace + if (isSmall) 16.dp else 24.dp))
-
-                    SupportedAppsSection(
-                        isCompact = isCompact,
-                        maxWidth = this@BoxWithConstraints.maxWidth,
-                        isLoading = uiState.isLoadingPatches,
-                        supportedApps = uiState.supportedApps,
-                        loadError = uiState.patchLoadError,
-                        onRetry = { viewModel.retryLoadPatches() }
-                    )
-                    Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 16.dp))
+                    // Bottom group: supported apps section
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(top = if (isSmall) 16.dp else 24.dp)
+                    ) {
+                        SupportedAppsSection(
+                            isCompact = isCompact,
+                            maxWidth = this@BoxWithConstraints.maxWidth,
+                            isLoading = uiState.isLoadingPatches,
+                            supportedApps = uiState.supportedApps,
+                            loadError = uiState.patchLoadError,
+                            onRetry = { viewModel.retryLoadPatches() }
+                        )
+                        Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 16.dp))
+                    }
                 }
 
                 // Settings button in top-right corner
@@ -787,16 +774,6 @@ private fun SupportedAppCardDynamic(
     var showAllVersions by remember { mutableStateOf(false) }
 
     val cardPadding = if (isCompact) 12.dp else 16.dp
-    val iconSize = if (isCompact) 48.dp else 56.dp
-    val iconInnerSize = if (isCompact) 32.dp else 40.dp
-
-    // Get icon resource based on package name
-    val iconRes = when (supportedApp.packageName) {
-        AppConstants.YouTube.PACKAGE_NAME -> Res.drawable.youtube
-        AppConstants.YouTubeMusic.PACKAGE_NAME -> Res.drawable.youtube_music
-        AppConstants.Reddit.PACKAGE_NAME -> Res.drawable.reddit
-        else -> null
-    }
 
     // Get APKMirror URL from AppConstants (still hardcoded)
     val apkMirrorUrl = when (supportedApp.packageName) {
@@ -819,33 +796,6 @@ private fun SupportedAppCardDynamic(
                 .padding(cardPadding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // App icon
-            Box(
-                modifier = Modifier
-                    .size(iconSize)
-                    .clip(RoundedCornerShape(if (isCompact) 10.dp else 12.dp))
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
-                if (iconRes != null) {
-                    Image(
-                        painter = painterResource(iconRes),
-                        contentDescription = "${supportedApp.displayName} icon",
-                        modifier = Modifier.size(iconInnerSize)
-                    )
-                } else {
-                    // Fallback: show first letter of app name
-                    Text(
-                        text = supportedApp.displayName.first().toString(),
-                        fontSize = if (isCompact) 20.sp else 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MorpheColors.Blue
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(if (isCompact) 8.dp else 12.dp))
-
             // App name
             Text(
                 text = supportedApp.displayName,

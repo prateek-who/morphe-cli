@@ -34,6 +34,23 @@ fun launchGui(args: Array<String>) = application {
 
     val appIcon = remember { loadAppIcon() }
 
+    // Set macOS dock icon
+    remember {
+        try {
+            if (java.awt.Taskbar.isTaskbarSupported()) {
+                val stream = Thread.currentThread().contextClassLoader
+                    .getResourceAsStream("morphe_logo.png")
+                    ?: ClassLoader.getSystemResourceAsStream("morphe_logo.png")
+                if (stream != null) {
+                    java.awt.Taskbar.getTaskbar().iconImage =
+                        javax.imageio.ImageIO.read(stream)
+                }
+            }
+        } catch (_: Exception) {
+            // Taskbar not supported or icon loading failed
+        }
+    }
+
     Window(
         onCloseRequest = ::exitApplication,
         title = "Morphe",

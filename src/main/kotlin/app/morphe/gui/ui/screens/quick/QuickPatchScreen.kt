@@ -31,9 +31,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import app.morphe.morphe_cli.generated.resources.Res
-import app.morphe.morphe_cli.generated.resources.reddit
-import app.morphe.morphe_cli.generated.resources.youtube
-import app.morphe.morphe_cli.generated.resources.youtube_music
 import app.morphe.gui.data.constants.AppConstants
 import app.morphe.gui.data.repository.ConfigRepository
 import app.morphe.gui.data.repository.PatchRepository
@@ -361,18 +358,18 @@ private fun ReadyContent(
                         .background(Color.White),
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(
-                            when (apkInfo.packageName) {
-                                AppConstants.YouTube.PACKAGE_NAME -> Res.drawable.youtube
-                                AppConstants.YouTubeMusic.PACKAGE_NAME -> Res.drawable.youtube_music
-                                AppConstants.Reddit.PACKAGE_NAME -> Res.drawable.reddit
-                                else -> Res.drawable.youtube // Fallback
-                            }
-                        ),
-                        contentDescription = "${apkInfo.displayName} icon",
-                        modifier = Modifier.size(36.dp)
-                    )
+//                    Image(
+//                        painter = painterResource(
+//                            when (apkInfo.packageName) {
+//                                AppConstants.YouTube.PACKAGE_NAME -> Res.drawable.youtube
+//                                AppConstants.YouTubeMusic.PACKAGE_NAME -> Res.drawable.youtube_music
+//                                AppConstants.Reddit.PACKAGE_NAME -> Res.drawable.reddit
+//                                else -> Res.drawable.youtube // Fallback
+//                            }
+//                        ),
+//                        contentDescription = "${apkInfo.displayName} icon",
+//                        modifier = Modifier.size(36.dp)
+//                    )
                 }
 
                 Spacer(modifier = Modifier.width(16.dp))
@@ -711,27 +708,6 @@ private fun SupportedAppsRow(
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color.White),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Image(
-                                        painter = painterResource(
-                                            when (app.packageName) {
-                                                AppConstants.YouTube.PACKAGE_NAME -> Res.drawable.youtube
-                                                AppConstants.YouTubeMusic.PACKAGE_NAME -> Res.drawable.youtube_music
-                                                AppConstants.Reddit.PACKAGE_NAME -> Res.drawable.reddit
-                                                else -> Res.drawable.youtube // Fallback
-                                            }
-                                        ),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = app.displayName,
