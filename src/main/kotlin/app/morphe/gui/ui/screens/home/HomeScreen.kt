@@ -21,8 +21,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.isSystemInDarkTheme
 import app.morphe.morphe_cli.generated.resources.Res
-import app.morphe.morphe_cli.generated.resources.morphe
+import app.morphe.morphe_cli.generated.resources.morphe_dark
+import app.morphe.morphe_cli.generated.resources.morphe_light
+import app.morphe.gui.ui.theme.LocalThemeState
+import app.morphe.gui.ui.theme.ThemePreference
 import org.jetbrains.compose.resources.painterResource
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.koin.koinScreenModel
@@ -500,8 +504,14 @@ private fun VersionWarningDialog(
 
 @Composable
 private fun BrandingSection(isCompact: Boolean = false) {
+    val themeState = LocalThemeState.current
+    val isDark = when (themeState.current) {
+        ThemePreference.DARK -> true
+        ThemePreference.LIGHT -> false
+        ThemePreference.SYSTEM -> isSystemInDarkTheme()
+    }
     Image(
-        painter = painterResource(Res.drawable.morphe),
+        painter = painterResource(if (isDark) Res.drawable.morphe_dark else Res.drawable.morphe_light),
         contentDescription = "Morphe Logo",
         modifier = Modifier.height(if (isCompact) 48.dp else 60.dp)
     )
