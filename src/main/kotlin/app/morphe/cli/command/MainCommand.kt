@@ -7,7 +7,7 @@ import picocli.CommandLine.Command
 import picocli.CommandLine.IVersionProvider
 import java.util.*
 
-fun main(args: Array<String>) {
+fun cliMain(args: Array<String>) {
     Logger.setDefault()
     CommandLine(MainCommand).execute(*args).let(System::exit)
 }
@@ -39,4 +39,4 @@ private object CLIVersionProvider : IVersionProvider {
         UtilityCommand::class,
     ],
 )
-private object MainCommand
+internal object MainCommand

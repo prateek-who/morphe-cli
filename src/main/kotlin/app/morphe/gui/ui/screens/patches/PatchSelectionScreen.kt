@@ -1,0 +1,707 @@
+package app.morphe.gui.ui.screens.patches
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.koin.koinScreenModel
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
+import app.morphe.gui.data.model.Patch
+import org.koin.core.parameter.parametersOf
+import app.morphe.gui.ui.components.ErrorDialog
+import app.morphe.gui.ui.components.SettingsButton
+import app.morphe.gui.ui.components.getErrorType
+import app.morphe.gui.ui.components.getFriendlyErrorMessage
+import app.morphe.gui.ui.screens.patching.PatchingScreen
+import app.morphe.gui.ui.theme.MorpheColors
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
+
+/**
+ * Screen for selecting which patches to apply.
+ */
+data class PatchSelectionScreen(
+    val apkPath: String,
+    val apkName: String,
+    val patchesFilePath: String
+) : Screen {
+
+    @Composable
+    override fun Content() {
+        val viewModel = koinScreenModel<PatchSelectionViewModel> {
+            parametersOf(apkPath, apkName, patchesFilePath)
+        }
+        PatchSelectionScreenContent(viewModel = viewModel)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
+    val navigator = LocalNavigator.currentOrThrow
+    val uiState by viewModel.uiState.collectAsState()
+
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var currentError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { error ->
+            currentError = error
+            showErrorDialog = true
+        }
+    }
+
+    // Error dialog
+    if (showErrorDialog && currentError != null) {
+        ErrorDialog(
+            title = "Error Loading Patches",
+            message = getFriendlyErrorMessage(currentError!!),
+            errorType = getErrorType(currentError!!),
+            onDismiss = {
+                showErrorDialog = false
+                viewModel.clearError()
+            },
+            onRetry = {
+                showErrorDialog = false
+                viewModel.clearError()
+                viewModel.loadPatches()
+            }
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Select Patches", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "${uiState.selectedCount} of ${uiState.totalCount} selected",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navigator.pop() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                actions = {
+                    // Select all / Deselect all
+                    TextButton(onClick = {
+                        if (uiState.selectedPatches.size == uiState.allPatches.size) {
+                            viewModel.deselectAll()
+                        } else {
+                            viewModel.selectAll()
+                        }
+                    }) {
+                        Text(
+                            if (uiState.selectedPatches.size == uiState.allPatches.size) "Deselect All" else "Select All",
+                            color = MorpheColors.Blue
+                        )
+                    }
+                    SettingsButton(allowCacheClear = false)
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        },
+    ) { paddingValues ->
+        // State for command preview
+        var cleanMode by remember { mutableStateOf(false) }
+        var isCollapsed by remember { mutableStateOf(false) }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Command preview at the top - updates in real-time
+            if (!uiState.isLoading && uiState.allPatches.isNotEmpty()) {
+                val commandPreview = remember(uiState.selectedPatches, cleanMode) {
+                    viewModel.getCommandPreview(cleanMode)
+                }
+                CommandPreview(
+                    command = commandPreview,
+                    cleanMode = cleanMode,
+                    isCollapsed = isCollapsed,
+                    onToggleMode = { cleanMode = !cleanMode },
+                    onToggleCollapse = { isCollapsed = !isCollapsed },
+                    onCopy = {
+                        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                        clipboard.setContents(StringSelection(commandPreview), null)
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+
+            // Search bar
+            SearchBar(
+                query = uiState.searchQuery,
+                onQueryChange = { viewModel.setSearchQuery(it) },
+                showOnlySelected = uiState.showOnlySelected,
+                onShowOnlySelectedChange = { viewModel.setShowOnlySelected(it) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            // Commonly disabled patches suggestion
+            val commonlyDisabledPatches = remember(uiState.selectedPatches, uiState.allPatches) {
+                viewModel.getCommonlyDisabledPatches()
+            }
+            var suggestionDismissed by remember { mutableStateOf(false) }
+
+            AnimatedVisibility(
+                visible = commonlyDisabledPatches.isNotEmpty() && !suggestionDismissed && !uiState.isLoading,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                CommonlyDisabledSuggestion(
+                    patches = commonlyDisabledPatches,
+                    onDeselectAll = { viewModel.deselectCommonlyDisabled() },
+                    onDismiss = { suggestionDismissed = true },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
+            when {
+                uiState.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            CircularProgressIndicator(color = MorpheColors.Blue)
+                            Text(
+                                text = "Loading patches...",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                uiState.filteredPatches.isEmpty() && !uiState.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (uiState.searchQuery.isNotBlank()) "No patches match your search" else "No patches found",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                else -> {
+                    // Patch list
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(
+                            items = uiState.filteredPatches,
+                            key = { it.uniqueId }
+                        ) { patch ->
+                            PatchListItem(
+                                patch = patch,
+                                isSelected = uiState.selectedPatches.contains(patch.uniqueId),
+                                onToggle = { viewModel.togglePatch(patch.uniqueId) }
+                            )
+                        }
+                    }
+
+                    // Bottom action bar
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 3.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val config = viewModel.createPatchConfig()
+                                    navigator.push(PatchingScreen(config))
+                                },
+                                enabled = uiState.selectedPatches.isNotEmpty(),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MorpheColors.Blue
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = "Patch (${uiState.selectedCount})",
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    showOnlySelected: Boolean,
+    onShowOnlySelectedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            placeholder = { Text("Search patches...") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChange("") }) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Clear",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MorpheColors.Blue,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            )
+        )
+
+        FilterChip(
+            selected = showOnlySelected,
+            onClick = { onShowOnlySelectedChange(!showOnlySelected) },
+            label = { Text("Selected") },
+            leadingIcon = if (showOnlySelected) {
+                {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            } else null
+        )
+    }
+}
+
+@Composable
+private fun PatchListItem(
+    patch: Patch,
+    isSelected: Boolean,
+    onToggle: () -> Unit
+) {
+    val backgroundColor = if (isSelected) {
+        MorpheColors.Blue.copy(alpha = 0.1f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onToggle() },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MorpheColors.Blue,
+                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = patch.name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                if (patch.description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = patch.description,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Show compatible packages if any
+                if (patch.compatiblePackages.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        patch.compatiblePackages.take(2).forEach { pkg ->
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = pkg.name.substringAfterLast("."),
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Show options indicator if patch has options
+                if (patch.options.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${patch.options.size} option${if (patch.options.size > 1) "s" else ""} available",
+                        fontSize = 11.sp,
+                        color = MorpheColors.Teal
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommonlyDisabledSuggestion(
+    patches: List<Pair<Patch, String>>,
+    onDeselectAll: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFF9800).copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Commonly disabled patches",
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        color = Color(0xFFFF9800)
+                    )
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "These ${patches.size} patch${if (patches.size > 1) "es are" else " is"} commonly disabled by users:",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // List patch names
+            patches.take(4).forEach { (patch, _) ->
+                Text(
+                    text = "• ${patch.name}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (patches.size > 4) {
+                Text(
+                    text = "• +${patches.size - 4} more",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onDismiss,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("Keep all", fontSize = 12.sp)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        onDeselectAll()
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF9800)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Deselect these", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Terminal-style command preview showing the CLI command that will be executed.
+ */
+@Composable
+private fun CommandPreview(
+    command: String,
+    cleanMode: Boolean,
+    isCollapsed: Boolean,
+    onToggleMode: () -> Unit,
+    onToggleCollapse: () -> Unit,
+    onCopy: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val terminalBackground = Color(0xFF1E1E1E)
+    val terminalGreen = Color(0xFF4EC9B0)
+    val terminalText = Color(0xFFD4D4D4)
+    val terminalDim = Color(0xFF6A9955)
+
+    var showCopied by remember { mutableStateOf(false) }
+
+    // Reset "Copied!" message after a delay
+    LaunchedEffect(showCopied) {
+        if (showCopied) {
+            kotlinx.coroutines.delay(1500)
+            showCopied = false
+        }
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = terminalBackground),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            // Header with terminal icon, controls, and collapse toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Left side - icon, title, and collapse toggle
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable(onClick = onToggleCollapse)
+                        .padding(end = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Terminal,
+                        contentDescription = null,
+                        tint = terminalGreen,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "Command Preview",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = terminalGreen
+                    )
+                    Icon(
+                        imageVector = if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                        contentDescription = if (isCollapsed) "Expand" else "Collapse",
+                        tint = terminalDim,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // Right side - controls
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Copy button
+                    Surface(
+                        onClick = {
+                            onCopy()
+                            showCopied = true
+                        },
+                        color = Color.Transparent,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy",
+                                tint = if (showCopied) terminalGreen else terminalDim,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = if (showCopied) "Copied!" else "Copy",
+                                fontSize = 10.sp,
+                                color = if (showCopied) terminalGreen else terminalDim
+                            )
+                        }
+                    }
+
+                    // Mode toggle (only show when not collapsed)
+                    if (!isCollapsed) {
+                        Surface(
+                            onClick = onToggleMode,
+                            color = Color.Transparent,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = if (cleanMode) "compact" else "expand",
+                                fontSize = 10.sp,
+                                color = terminalDim,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Command text - collapsible, vertically scrollable
+            AnimatedVisibility(
+                visible = !isCollapsed,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Column {
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Vertically scrollable command text with max height
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 120.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = command,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = terminalText,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

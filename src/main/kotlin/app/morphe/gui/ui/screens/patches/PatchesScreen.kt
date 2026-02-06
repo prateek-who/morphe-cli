@@ -1,0 +1,478 @@
+package app.morphe.gui.ui.screens.patches
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
+import app.morphe.gui.data.model.Release
+import org.koin.core.parameter.parametersOf
+import cafe.adriel.voyager.koin.koinScreenModel
+import app.morphe.gui.ui.components.ErrorDialog
+import app.morphe.gui.ui.components.SettingsButton
+import app.morphe.gui.ui.components.getErrorType
+import app.morphe.gui.ui.components.getFriendlyErrorMessage
+import app.morphe.gui.ui.theme.MorpheColors
+import java.io.File
+
+/**
+ * Screen for selecting patches to apply.
+ */
+data class PatchesScreen(
+    val apkPath: String,
+    val apkName: String
+) : Screen {
+
+    @Composable
+    override fun Content() {
+        val viewModel = koinScreenModel<PatchesViewModel> { parametersOf(apkPath, apkName) }
+        PatchesScreenContent(viewModel = viewModel)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PatchesScreenContent(viewModel: PatchesViewModel) {
+    val navigator = LocalNavigator.currentOrThrow
+    val uiState by viewModel.uiState.collectAsState()
+
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var currentError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { error ->
+            currentError = error
+            showErrorDialog = true
+        }
+    }
+
+    // Error dialog
+    if (showErrorDialog && currentError != null) {
+        ErrorDialog(
+            title = "Error",
+            message = getFriendlyErrorMessage(currentError!!),
+            errorType = getErrorType(currentError!!),
+            onDismiss = {
+                showErrorDialog = false
+                viewModel.clearError()
+            },
+            onRetry = {
+                showErrorDialog = false
+                viewModel.clearError()
+                viewModel.loadReleases()
+            }
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Select Patches", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = viewModel.getApkName(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navigator.pop() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { viewModel.loadReleases() },
+                        enabled = !uiState.isLoading
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh"
+                        )
+                    }
+                    SettingsButton(allowCacheClear = true)
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        },
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Channel selector
+            ChannelSelector(
+                selectedChannel = uiState.selectedChannel,
+                onChannelSelected = { viewModel.setChannel(it) },
+                stableCount = uiState.stableReleases.size,
+                devCount = uiState.devReleases.size,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            when {
+                uiState.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            CircularProgressIndicator(color = MorpheColors.Blue)
+                            Text(
+                                text = "Fetching releases...",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                uiState.currentReleases.isEmpty() && !uiState.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                text = "No releases found",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedButton(onClick = { viewModel.loadReleases() }) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+                }
+
+                else -> {
+                    // Releases list
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(uiState.currentReleases) { release ->
+                            ReleaseCard(
+                                release = release,
+                                isSelected = release == uiState.selectedRelease,
+                                onClick = { viewModel.selectRelease(release) }
+                            )
+                        }
+                    }
+
+                    // Bottom action bar
+                    BottomActionBar(
+                        uiState = uiState,
+                        onDownloadClick = { viewModel.downloadPatches() },
+                        onSelectClick = {
+                            // Save the selected version to config before navigating back
+                            viewModel.confirmSelection()
+                            // Go back to HomeScreen - the new patches file is now cached
+                            navigator.pop()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelSelector(
+    selectedChannel: ReleaseChannel,
+    onChannelSelected: (ReleaseChannel) -> Unit,
+    stableCount: Int,
+    devCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        ChannelChip(
+            label = "Stable",
+            count = stableCount,
+            isSelected = selectedChannel == ReleaseChannel.STABLE,
+            onClick = { onChannelSelected(ReleaseChannel.STABLE) },
+            modifier = Modifier.weight(1f)
+        )
+        ChannelChip(
+            label = "Dev",
+            count = devCount,
+            isSelected = selectedChannel == ReleaseChannel.DEV,
+            onClick = { onChannelSelected(ReleaseChannel.DEV) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun ChannelChip(
+    label: String,
+    count: Int,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (isSelected) {
+        MorpheColors.Blue.copy(alpha = 0.15f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+
+    val borderColor = if (isSelected) {
+        MorpheColors.Blue
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+    }
+
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        color = backgroundColor,
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isSelected) MorpheColors.Blue else MaterialTheme.colorScheme.onSurface
+            )
+            if (count > 0) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "($count)",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReleaseCard(
+    release: Release,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor = if (isSelected) {
+        MorpheColors.Blue.copy(alpha = 0.1f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = release.tagName,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (release.isDevRelease()) {
+                        Surface(
+                            color = MorpheColors.Teal.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "DEV",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MorpheColors.Teal,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Show .mpp file info if available
+                release.assets.find { it.isMpp() }?.let { mppAsset ->
+                    Text(
+                        text = "${mppAsset.name} (${mppAsset.getFormattedSize()})",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Text(
+                    text = "Published: ${formatDate(release.publishedAt)}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Selected",
+                    tint = MorpheColors.Blue,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomActionBar(
+    uiState: PatchesUiState,
+    onDownloadClick: () -> Unit,
+    onSelectClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Download progress
+            if (uiState.isDownloading) {
+                LinearProgressIndicator(
+                    progress = { uiState.downloadProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = MorpheColors.Blue,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Downloading patches...",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Download button
+                if (uiState.downloadedPatchFile == null) {
+                    Button(
+                        onClick = onDownloadClick,
+                        enabled = uiState.selectedRelease != null && !uiState.isDownloading,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MorpheColors.Blue
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = if (uiState.isDownloading) "Downloading..." else "Download Patches",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                } else {
+                    // Select button (patches downloaded)
+                    Button(
+                        onClick = onSelectClick,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MorpheColors.Teal
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "Select",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            // Downloaded file info
+            uiState.downloadedPatchFile?.let { file ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Downloaded: ${file.name}",
+                    fontSize = 12.sp,
+                    color = MorpheColors.Teal
+                )
+            }
+        }
+    }
+}
+
+private fun formatDate(isoDate: String): String {
+    return try {
+        // Simple date formatting - takes "2024-01-15T10:30:00Z" and returns "Jan 15, 2024"
+        val datePart = isoDate.substringBefore("T")
+        val parts = datePart.split("-")
+        if (parts.size == 3) {
+            val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+            val month = months.getOrElse(parts[1].toInt() - 1) { "???" }
+            val day = parts[2].toInt()
+            val year = parts[0]
+            "$month $day, $year"
+        } else {
+            datePart
+        }
+    } catch (e: Exception) {
+        isoDate
+    }
+}
