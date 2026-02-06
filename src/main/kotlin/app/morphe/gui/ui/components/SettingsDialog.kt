@@ -1,0 +1,305 @@
+package app.morphe.gui.ui.components
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.morphe.gui.data.constants.AppConstants
+import app.morphe.gui.ui.theme.MorpheColors
+import app.morphe.gui.ui.theme.ThemePreference
+import app.morphe.gui.util.FileUtils
+import app.morphe.gui.util.Logger
+import java.awt.Desktop
+import java.io.File
+
+@Composable
+fun SettingsDialog(
+    currentTheme: ThemePreference,
+    onThemeChange: (ThemePreference) -> Unit,
+    autoCleanupTempFiles: Boolean,
+    onAutoCleanupChange: (Boolean) -> Unit,
+    useSimplifiedMode: Boolean,
+    onSimplifiedModeChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    allowCacheClear: Boolean = true
+) {
+    var showClearCacheConfirm by remember { mutableStateOf(false) }
+    var cacheCleared by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(16.dp),
+        title = {
+            Text(
+                text = "Settings",
+                fontWeight = FontWeight.SemiBold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .widthIn(min = 300.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Theme selection
+                Text(
+                    text = "Theme",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ThemePreference.entries.forEach { theme ->
+                        FilterChip(
+                            selected = currentTheme == theme,
+                            onClick = { onThemeChange(theme) },
+                            label = { Text(theme.toDisplayName()) }
+                        )
+                    }
+                }
+
+                HorizontalDivider()
+
+                // Simplified mode setting
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Simplified mode",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Quick one-click patching with default settings",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = useSimplifiedMode,
+                        onCheckedChange = onSimplifiedModeChange,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MorpheColors.Blue,
+                            checkedTrackColor = MorpheColors.Blue.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+
+                HorizontalDivider()
+
+                // Auto-cleanup setting
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Auto-cleanup temp files",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Automatically delete temporary files after patching",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoCleanupTempFiles,
+                        onCheckedChange = onAutoCleanupChange,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MorpheColors.Teal,
+                            checkedTrackColor = MorpheColors.Teal.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+
+                HorizontalDivider()
+
+                // Actions
+                Text(
+                    text = "Actions",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // Export logs button
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val logsDir = FileUtils.getLogsDir()
+                            if (Desktop.isDesktopSupported()) {
+                                Desktop.getDesktop().open(logsDir)
+                            }
+                        } catch (e: Exception) {
+                            Logger.error("Failed to open logs folder", e)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.BugReport,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Open Logs Folder")
+                }
+
+                // Open app data folder
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val appDataDir = FileUtils.getAppDataDir()
+                            if (Desktop.isDesktopSupported()) {
+                                Desktop.getDesktop().open(appDataDir)
+                            }
+                        } catch (e: Exception) {
+                            Logger.error("Failed to open app data folder", e)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FolderOpen,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Open App Data Folder")
+                }
+
+                // Clear cache button
+                OutlinedButton(
+                    onClick = { showClearCacheConfirm = true },
+                    enabled = allowCacheClear && !cacheCleared,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (cacheCleared) MorpheColors.Teal else MaterialTheme.colorScheme.error,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        when {
+                            !allowCacheClear -> "Clear Cache (disabled during patching)"
+                            cacheCleared -> "Cache Cleared"
+                            else -> "Clear Cache"
+                        }
+                    )
+                }
+
+                // Cache info
+                val cacheSize = calculateCacheSize()
+                Text(
+                    text = "Cache: $cacheSize (CLI + Patches)",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                HorizontalDivider()
+
+                // About
+                Text(
+                    text = "${AppConstants.APP_NAME} v${AppConstants.APP_VERSION}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+
+    // Clear cache confirmation dialog
+    if (showClearCacheConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearCacheConfirm = false },
+            shape = RoundedCornerShape(16.dp),
+            title = { Text("Clear Cache?") },
+            text = {
+                Text("This will delete downloaded CLI and patch files. They will be re-downloaded when needed.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        clearAllCache()
+                        cacheCleared = true
+                        showClearCacheConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Clear")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCacheConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+private fun ThemePreference.toDisplayName(): String {
+    return when (this) {
+        ThemePreference.LIGHT -> "Light"
+        ThemePreference.DARK -> "Dark"
+        ThemePreference.SYSTEM -> "System"
+    }
+}
+
+private fun calculateCacheSize(): String {
+    val patchesSize = FileUtils.getPatchesDir().walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+    return when {
+        patchesSize < 1024 -> "$patchesSize B"
+        patchesSize < 1024 * 1024 -> "%.1f KB".format(patchesSize / 1024.0)
+        else -> "%.1f MB".format(patchesSize / (1024.0 * 1024.0))
+    }
+}
+
+private fun clearAllCache() {
+    try {
+        FileUtils.getPatchesDir().listFiles()?.forEach { it.delete() }
+        FileUtils.cleanupAllTempDirs()
+        Logger.info("Cache cleared successfully")
+    } catch (e: Exception) {
+        Logger.error("Failed to clear cache", e)
+    }
+}
