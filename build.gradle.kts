@@ -168,6 +168,14 @@ tasks {
         mergeServiceFiles()
     }
 
+    distTar {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+
+    distZip {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+
     publish {
         dependsOn(shadowJar)
     }
