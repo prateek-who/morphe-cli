@@ -116,8 +116,6 @@ dependencies {
     implementation(libs.voyager.screenmodel)
     implementation(libs.voyager.koin)
     implementation(libs.voyager.transitions)
-    apkEditorLib(files("$rootDir/libs/APKEditor-1.4.7.jar"))
-    implementation(files(strippedApkEditorLib))
 
     // -- APK Parsing (GUI) -------------------------------------------------
     implementation(libs.apk.parser)
