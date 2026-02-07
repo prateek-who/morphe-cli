@@ -59,9 +59,6 @@ repositories {
     maven { url = uri("https://jitpack.io") }
 }
 
-// ============================================================================
-// Dependencies
-// ============================================================================
 val apkEditorLib by configurations.creating
 
 val strippedApkEditorLib by tasks.registering(org.gradle.jvm.tasks.Jar::class) {
@@ -119,6 +116,8 @@ dependencies {
     implementation(libs.voyager.screenmodel)
     implementation(libs.voyager.koin)
     implementation(libs.voyager.transitions)
+    apkEditorLib(files("$rootDir/libs/APKEditor-1.4.7.jar"))
+    implementation(files(strippedApkEditorLib))
 
     // -- APK Parsing (GUI) -------------------------------------------------
     implementation(libs.apk.parser)
@@ -155,10 +154,6 @@ tasks {
             "/prebuilt/windows/aapt.exe",
             "/prebuilt/*/aapt_*",
         )
-        exclude("/prebuilt/linux/aapt")
-        exclude("/prebuilt/windows/aapt.exe")
-        exclude("/prebuilt/*/aapt_*")
-
         minimize {
             exclude(dependency("org.bouncycastle:.*"))
             exclude(dependency("app.morphe:morphe-patcher"))
