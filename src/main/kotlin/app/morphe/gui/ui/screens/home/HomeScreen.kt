@@ -565,7 +565,7 @@ private fun DropPromptSection(
         Spacer(modifier = Modifier.height(if (isCompact) 12.dp else 16.dp))
 
         Text(
-            text = "Supported: .apk and .apkm files from APKMirror",
+            text = "Supported: .apk and .apkm files",
             fontSize = if (isCompact) 11.sp else 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
@@ -784,7 +784,7 @@ private fun SupportedAppCardDynamic(
 
     val cardPadding = if (isCompact) 12.dp else 16.dp
 
-    val apkMirrorUrl = supportedApp.apkMirrorUrl
+    val apkMirrorUrl = supportedApp.apkDownloadUrl
 
     Card(
         modifier = modifier,

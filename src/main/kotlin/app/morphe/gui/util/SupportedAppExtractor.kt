@@ -39,7 +39,7 @@ object SupportedAppExtractor {
                 displayName = SupportedApp.getDisplayName(packageName),
                 supportedVersions = versionList,
                 recommendedVersion = recommendedVersion,
-                apkMirrorUrl = SupportedApp.getDownloadUrl(packageName, recommendedVersion)
+                apkDownloadUrl = SupportedApp.getDownloadUrl(packageName, recommendedVersion)
             )
         }.sortedBy { it.displayName }
     }
