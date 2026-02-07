@@ -1,3 +1,10 @@
+# [1.4.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.3.0...v1.4.0-dev.1) (2026-02-07)
+
+
+### Features
+
+* Support patching APKM bundles ([#40](https://github.com/MorpheApp/morphe-cli/issues/40)) ([bfe43d0](https://github.com/MorpheApp/morphe-cli/commit/bfe43d0b747d0e336a3f36f048e85907a140f1fc))
+
 # [1.3.0](https://github.com/MorpheApp/morphe-cli/compare/v1.2.0...v1.3.0) (2026-02-04)
 
 
