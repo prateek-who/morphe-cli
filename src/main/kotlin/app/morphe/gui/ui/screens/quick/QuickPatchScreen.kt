@@ -36,7 +36,6 @@ import app.morphe.morphe_cli.generated.resources.morphe_dark
 import app.morphe.morphe_cli.generated.resources.morphe_light
 import app.morphe.gui.ui.theme.LocalThemeState
 import app.morphe.gui.ui.theme.ThemePreference
-import app.morphe.gui.data.constants.AppConstants
 import app.morphe.gui.data.repository.ConfigRepository
 import app.morphe.gui.data.repository.PatchRepository
 import app.morphe.gui.util.PatchService
@@ -49,6 +48,7 @@ import app.morphe.gui.util.AdbDevice
 import app.morphe.gui.util.AdbManager
 import kotlinx.coroutines.launch
 import app.morphe.gui.util.ChecksumStatus
+import app.morphe.gui.util.DownloadUrlResolver.openUrlAndFollowRedirects
 import java.awt.Desktop
 import java.awt.datatransfer.DataFlavor
 import java.io.File
@@ -222,7 +222,11 @@ fun QuickPatchContent(viewModel: QuickPatchViewModel) {
                         isLoading = uiState.isLoadingPatches,
                         loadError = uiState.patchLoadError,
                         patchesVersion = uiState.patchesVersion,
-                        onOpenUrl = { url -> uriHandler.openUri(url) },
+                        onOpenUrl = { url ->
+                            openUrlAndFollowRedirects(url) { urlResolved ->
+                                uriHandler.openUri(urlResolved)
+                            }
+                        },
                         onRetry = { viewModel.retryLoadPatches() }
                     )
                 }
@@ -751,7 +755,7 @@ private fun SupportedAppsRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Get the APK from APKMirror:",
+                text = "Download original APK:",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -813,7 +817,7 @@ private fun SupportedAppsRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 supportedApps.forEach { app ->
-                    val url = app.apkMirrorUrl
+                    val url = app.apkDownloadUrl
                     if (url != null) {
                         OutlinedCard(
                             onClick = { onOpenUrl(url) },

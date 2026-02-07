@@ -11,7 +11,7 @@ data class SupportedApp(
     val displayName: String,
     val supportedVersions: List<String>,
     val recommendedVersion: String?,
-    val apkMirrorUrl: String? = null
+    val apkDownloadUrl: String? = null
 ) {
     companion object {
         /**
@@ -36,7 +36,7 @@ data class SupportedApp(
          */
         fun getDownloadUrl(packageName: String, version: String?): String? {
             if (version == null) return null
-            return DownloadUrlResolver.buildUrl(packageName, version)
+            return DownloadUrlResolver.getWebSearchDownloadLink(packageName, version)
         }
 
         /**

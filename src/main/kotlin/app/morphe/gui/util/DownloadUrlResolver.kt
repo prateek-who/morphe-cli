@@ -1,29 +1,75 @@
 package app.morphe.gui.util
 
-/**
- * Builds direct APKMirror release page URLs from package name + version.
- * Pattern: https://www.apkmirror.com/apk/{publisher}/{app}/{app}-{version}-release/
- */
+import app.morphe.gui.data.constants.AppConstants.MORPHE_API_URL
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
+import java.net.URL
+
 object DownloadUrlResolver {
 
-    private data class ApkMirrorApp(val publisher: String, val name: String)
-
-    private val PACKAGE_MAP = mapOf(
-        "com.google.android.youtube" to ApkMirrorApp("google-inc", "youtube"),
-        "com.google.android.apps.youtube.music" to ApkMirrorApp("google-inc", "youtube-music"),
-        "com.reddit.frontpage" to ApkMirrorApp("redditinc", "reddit")
-    )
-
-    fun buildUrl(packageName: String, version: String?): String {
-        if (version == null) return fallbackUrl(packageName)
-
-        val app = PACKAGE_MAP[packageName] ?: return fallbackUrl(packageName)
-        val versionSlug = version.replace(".", "-")
-
-        return "https://www.apkmirror.com/apk/${app.publisher}/${app.name}/${app.name}-$versionSlug-release/"
+    fun getWebSearchDownloadLink(packageName: String, version: String, architecture: String? = null): String {
+        val architectureString = architecture ?: "all"
+        return "$MORPHE_API_URL/v2/web-search/$packageName:$version:$architectureString"
     }
 
-    private fun fallbackUrl(packageName: String): String {
-        return "${app.morphe.gui.data.constants.AppConstants.MORPHE_API_URL}/v2/web-search/$packageName"
+    fun openUrlAndFollowRedirects(url: String, handleResolvedUrl: (String) -> Unit) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val result = withContext(Dispatchers.IO) {
+                resolveRedirects(url)
+            }
+
+            handleResolvedUrl(result)
+        }
     }
+
+    fun resolveRedirects(url: String, maxRedirectsToFollow : Int = 5): String {
+        if (maxRedirectsToFollow <= 0) return url
+
+        try {
+            val originalUrl = URL(url)
+            val connection = originalUrl.openConnection() as HttpURLConnection
+            connection.instanceFollowRedirects = false
+            connection.requestMethod = "HEAD"
+            connection.connectTimeout = 5_000
+            connection.readTimeout = 5_000
+
+            val responseCode = connection.responseCode
+            if (responseCode in 300..399) {
+                val location = connection.getHeaderField("Location")
+
+                if (location.isNullOrBlank()) {
+                    // Log.d("Location tag is blank: ${connection.responseMessage}")
+                    return url
+                }
+
+                val resolved =
+                    if (location.startsWith("http://") || location.startsWith("https://")) {
+                        location
+                    } else {
+                        val prefix = "${originalUrl.protocol}://${originalUrl.host}"
+                        if (location.startsWith("/")) "$prefix$location" else "$prefix/$location"
+                    }
+                //Log.d("Result: $resolved")
+
+                if (!resolved.startsWith(MORPHE_API_URL)) {
+                    return resolved
+                }
+
+                return resolveRedirects(resolved, maxRedirectsToFollow - 1)
+            }
+
+            //Log.d("Unexpected response code: $responseCode")
+        } catch (ex: SocketTimeoutException) {
+            //Log.d("Timeout while resolving search redirect: $ex")
+        } catch (ex: Exception) {
+            //Log.d("Exception while resolving search redirect: $ex")
+        }
+
+        return url
+    }
+
 }
