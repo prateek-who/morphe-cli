@@ -693,7 +693,7 @@ private fun SupportedAppsSection(
                         verticalAlignment = Alignment.Top,
                         modifier = Modifier
                             .padding(horizontal = if (isCompact) 8.dp else 16.dp)
-                            .widthIn(max = 600.dp)
+                            .widthIn(max = 700.dp)
                     ) {
                         supportedApps.forEach { app ->
                             SupportedAppCardDynamic(
