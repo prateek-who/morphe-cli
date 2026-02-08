@@ -27,6 +27,7 @@ import app.morphe.gui.data.model.Release
 import org.koin.core.parameter.parametersOf
 import cafe.adriel.voyager.koin.koinScreenModel
 import app.morphe.gui.ui.components.ErrorDialog
+import app.morphe.gui.ui.components.DeviceIndicator
 import app.morphe.gui.ui.components.SettingsButton
 import app.morphe.gui.ui.components.getErrorType
 import app.morphe.gui.ui.components.getFriendlyErrorMessage
@@ -105,6 +106,7 @@ fun PatchesScreenContent(viewModel: PatchesViewModel) {
                     }
                 },
                 actions = {
+                    DeviceIndicator()
                     IconButton(
                         onClick = { viewModel.loadReleases() },
                         enabled = !uiState.isLoading

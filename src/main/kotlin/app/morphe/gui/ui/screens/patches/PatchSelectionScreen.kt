@@ -41,7 +41,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import app.morphe.gui.data.model.Patch
 import org.koin.core.parameter.parametersOf
 import app.morphe.gui.ui.components.ErrorDialog
-import app.morphe.gui.ui.components.SettingsButton
+import app.morphe.gui.ui.components.TopBarRow
 import app.morphe.gui.ui.components.getErrorType
 import app.morphe.gui.ui.components.getFriendlyErrorMessage
 import app.morphe.gui.ui.screens.patching.PatchingScreen
@@ -137,7 +137,8 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
                             color = MorpheColors.Blue
                         )
                     }
-                    SettingsButton(allowCacheClear = false)
+                    TopBarRow(allowCacheClear = false)
+                    Spacer(Modifier.width(12.dp))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
@@ -369,6 +370,7 @@ private fun PatchListItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onToggle),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         shape = RoundedCornerShape(12.dp)
@@ -382,7 +384,7 @@ private fun PatchListItem(
         ) {
             Checkbox(
                 checked = isSelected,
-                onCheckedChange = { onToggle() },
+                onCheckedChange = null,
                 colors = CheckboxDefaults.colors(
                     checkedColor = MorpheColors.Blue,
                     uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant

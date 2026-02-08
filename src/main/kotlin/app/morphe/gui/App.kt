@@ -21,6 +21,7 @@ import app.morphe.gui.ui.theme.LocalThemeState
 import app.morphe.gui.ui.theme.MorpheTheme
 import app.morphe.gui.ui.theme.ThemePreference
 import app.morphe.gui.ui.theme.ThemeState
+import app.morphe.gui.util.DeviceMonitor
 import app.morphe.gui.util.Logger
 
 /**
@@ -94,6 +95,14 @@ private fun AppContent(initialSimplifiedMode: Boolean) {
         isSimplified = isSimplifiedMode,
         onChange = onModeChange
     )
+
+    // Start/stop DeviceMonitor with app lifecycle
+    DisposableEffect(Unit) {
+        DeviceMonitor.startMonitoring()
+        onDispose {
+            DeviceMonitor.stopMonitoring()
+        }
+    }
 
     MorpheTheme(themePreference = themePreference) {
         CompositionLocalProvider(

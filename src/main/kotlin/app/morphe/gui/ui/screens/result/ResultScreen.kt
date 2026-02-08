@@ -27,11 +27,12 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import app.morphe.gui.data.repository.ConfigRepository
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import app.morphe.gui.ui.components.SettingsButton
+import app.morphe.gui.ui.components.TopBarRow
 import app.morphe.gui.ui.theme.MorpheColors
 import app.morphe.gui.util.AdbDevice
 import app.morphe.gui.util.AdbException
 import app.morphe.gui.util.AdbManager
+import app.morphe.gui.util.DeviceMonitor
 import app.morphe.gui.util.DeviceStatus
 import app.morphe.gui.util.FileUtils
 import app.morphe.gui.util.Logger
@@ -60,11 +61,8 @@ fun ResultScreenContent(outputPath: String) {
     val adbManager = remember { AdbManager() }
     val configRepository: ConfigRepository = koinInject()
 
-    // ADB state
-    var isAdbAvailable by remember { mutableStateOf<Boolean?>(null) }
-    var connectedDevices by remember { mutableStateOf<List<AdbDevice>>(emptyList()) }
-    var selectedDevice by remember { mutableStateOf<AdbDevice?>(null) }
-    var isLoadingDevices by remember { mutableStateOf(false) }
+    // ADB state from DeviceMonitor
+    val monitorState by DeviceMonitor.state.collectAsState()
     var isInstalling by remember { mutableStateOf(false) }
     var installProgress by remember { mutableStateOf("") }
     var installError by remember { mutableStateOf<String?>(null) }
@@ -92,43 +90,9 @@ fun ResultScreenContent(outputPath: String) {
         }
     }
 
-    // Function to refresh device list
-    fun refreshDevices() {
-        scope.launch {
-            isLoadingDevices = true
-            val result = adbManager.getConnectedDevices()
-            result.fold(
-                onSuccess = { devices ->
-                    connectedDevices = devices
-                    // Auto-select if only one ready device
-                    val readyDevices = devices.filter { it.isReady }
-                    if (readyDevices.size == 1) {
-                        selectedDevice = readyDevices.first()
-                    } else if (selectedDevice != null && !readyDevices.any { it.id == selectedDevice?.id }) {
-                        // Clear selection if previously selected device is no longer available
-                        selectedDevice = null
-                    }
-                },
-                onFailure = {
-                    connectedDevices = emptyList()
-                    selectedDevice = null
-                }
-            )
-            isLoadingDevices = false
-        }
-    }
-
-    // Check ADB availability and fetch devices on load
-    LaunchedEffect(Unit) {
-        isAdbAvailable = adbManager.isAdbAvailable()
-        if (isAdbAvailable == true) {
-            refreshDevices()
-        }
-    }
-
     // Install function
     fun installViaAdb() {
-        val device = selectedDevice ?: return
+        val device = monitorState.selectedDevice ?: return
         scope.launch {
             isInstalling = true
             installError = null
@@ -248,17 +212,17 @@ fun ResultScreenContent(outputPath: String) {
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // ADB Install Section
-                if (isAdbAvailable == true) {
+                if (monitorState.isAdbAvailable == true) {
                     AdbInstallSection(
-                        devices = connectedDevices,
-                        selectedDevice = selectedDevice,
-                        isLoadingDevices = isLoadingDevices,
+                        devices = monitorState.devices,
+                        selectedDevice = monitorState.selectedDevice,
+                        isLoadingDevices = false,
                         isInstalling = isInstalling,
                         installProgress = installProgress,
                         installError = installError,
                         installSuccess = installSuccess,
-                        onDeviceSelected = { selectedDevice = it },
-                        onRefreshDevices = { refreshDevices() },
+                        onDeviceSelected = { DeviceMonitor.selectDevice(it) },
+                        onRefreshDevices = { },
                         onInstallClick = { installViaAdb() },
                         onRetryClick = {
                             installError = null
@@ -331,14 +295,14 @@ fun ResultScreenContent(outputPath: String) {
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Help text (only show when ADB is not available)
-                if (isAdbAvailable == false) {
+                if (monitorState.isAdbAvailable == false) {
                     Text(
                         text = "ADB not found. Install Android SDK Platform Tools to enable direct installation.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center
                     )
-                } else if (isAdbAvailable == null) {
+                } else if (monitorState.isAdbAvailable == null) {
                     Text(
                         text = "Checking for ADB...",
                         fontSize = 13.sp,
@@ -352,8 +316,8 @@ fun ResultScreenContent(outputPath: String) {
             }
         }
 
-        // Settings button in top-right corner
-        SettingsButton(
+        // Top bar (device indicator + settings) in top-right corner
+        TopBarRow(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(24.dp),

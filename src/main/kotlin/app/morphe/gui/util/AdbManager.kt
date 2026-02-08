@@ -261,14 +261,18 @@ class AdbManager {
                         }
                     }
 
-                    // If device is authorized, try to get friendly device name
+                    // If device is authorized, try to get friendly device name and architecture
                     val deviceName = if (status == DeviceStatus.DEVICE) {
                         model ?: product ?: getDeviceName(adbPath, id)
                     } else {
                         model ?: product
                     }
 
-                    AdbDevice(id, status, deviceName)
+                    val architecture = if (status == DeviceStatus.DEVICE) {
+                        getDeviceArchitecture(adbPath, id)
+                    } else null
+
+                    AdbDevice(id, status, deviceName, architecture)
                 } else null
             }
     }
@@ -279,6 +283,22 @@ class AdbManager {
     private fun getDeviceName(adbPath: String, deviceId: String): String? {
         return try {
             val process = ProcessBuilder(adbPath, "-s", deviceId, "shell", "getprop", "ro.product.model")
+                .redirectErrorStream(true)
+                .start()
+            val result = process.inputStream.bufferedReader().readText().trim()
+            process.waitFor()
+            if (process.exitValue() == 0 && result.isNotBlank()) result else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Get device CPU architecture using adb shell command.
+     */
+    private fun getDeviceArchitecture(adbPath: String, deviceId: String): String? {
+        return try {
+            val process = ProcessBuilder(adbPath, "-s", deviceId, "shell", "getprop", "ro.product.cpu.abi")
                 .redirectErrorStream(true)
                 .start()
             val result = process.inputStream.bufferedReader().readText().trim()
@@ -321,7 +341,8 @@ class AdbManager {
 data class AdbDevice(
     val id: String,
     val status: DeviceStatus,
-    val model: String? = null
+    val model: String? = null,
+    val architecture: String? = null
 ) {
     /** Device name (model or ID if model unknown) */
     val displayName: String
@@ -331,8 +352,9 @@ data class AdbDevice(
     val displayNameWithStatus: String
         get() {
             val name = displayName
+            val arch = architecture?.let { " ($it)" } ?: ""
             return when (status) {
-                DeviceStatus.DEVICE -> "$name (Connected)"
+                DeviceStatus.DEVICE -> "$name$arch (Connected)"
                 DeviceStatus.UNAUTHORIZED -> "$name (Unauthorized - check device)"
                 DeviceStatus.OFFLINE -> "$name (Offline)"
                 DeviceStatus.UNKNOWN -> "$name (Unknown status)"
