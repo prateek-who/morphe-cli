@@ -34,7 +34,7 @@ import cafe.adriel.voyager.koin.koinScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import app.morphe.gui.data.model.SupportedApp
-import app.morphe.gui.ui.components.SettingsButton
+import app.morphe.gui.ui.components.TopBarRow
 import app.morphe.gui.ui.screens.home.components.ApkInfoCard
 import app.morphe.gui.ui.screens.home.components.FullScreenDropZone
 import app.morphe.gui.ui.screens.patches.PatchesScreen
@@ -84,7 +84,8 @@ fun HomeScreenContent(
     FullScreenDropZone(
         isDragHovering = uiState.isDragHovering,
         onDragHoverChange = { viewModel.setDragHover(it) },
-        onFilesDropped = { viewModel.onFilesDropped(it) }
+        onFilesDropped = { viewModel.onFilesDropped(it) },
+        enabled = !uiState.isAnalyzing
     ) {
         BoxWithConstraints(
             modifier = Modifier
@@ -228,8 +229,8 @@ fun HomeScreenContent(
                     }
                 }
 
-                // Settings button in top-right corner
-                SettingsButton(
+                // Top bar (device indicator + settings) in top-right corner
+                TopBarRow(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(padding),
@@ -260,21 +261,27 @@ private fun MiddleContent(
     onChangeClick: () -> Unit,
     onContinueClick: () -> Unit
 ) {
-    if (uiState.apkInfo != null) {
-        ApkSelectedSection(
-            patchesLoaded = patchesLoaded,
-            apkInfo = uiState.apkInfo,
-            isCompact = isCompact,
-            onClearClick = onClearClick,
-            onChangeClick = onChangeClick,
-            onContinueClick = onContinueClick
-        )
-    } else {
-        DropPromptSection(
-            isDragHovering = uiState.isDragHovering,
-            isCompact = isCompact,
-            onBrowseClick = onChangeClick
-        )
+    when {
+        uiState.isAnalyzing -> {
+            AnalyzingSection(isCompact = isCompact)
+        }
+        uiState.apkInfo != null -> {
+            ApkSelectedSection(
+                patchesLoaded = patchesLoaded,
+                apkInfo = uiState.apkInfo,
+                isCompact = isCompact,
+                onClearClick = onClearClick,
+                onChangeClick = onChangeClick,
+                onContinueClick = onContinueClick
+            )
+        }
+        else -> {
+            DropPromptSection(
+                isDragHovering = uiState.isDragHovering,
+                isCompact = isCompact,
+                onBrowseClick = onChangeClick
+            )
+        }
     }
 }
 
@@ -570,6 +577,38 @@ private fun DropPromptSection(
             text = "Supported: .apk and .apkm files",
             fontSize = if (isCompact) 11.sp else 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
+    }
+}
+
+@Composable
+private fun AnalyzingSection(isCompact: Boolean = false) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = if (isCompact) 16.dp else 32.dp)
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(if (isCompact) 36.dp else 44.dp),
+            color = MorpheColors.Blue,
+            strokeWidth = 3.dp
+        )
+
+        Spacer(modifier = Modifier.height(if (isCompact) 12.dp else 16.dp))
+
+        Text(
+            text = "Analyzing APK...",
+            fontSize = if (isCompact) 16.sp else 18.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Reading app information",
+            fontSize = if (isCompact) 12.sp else 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

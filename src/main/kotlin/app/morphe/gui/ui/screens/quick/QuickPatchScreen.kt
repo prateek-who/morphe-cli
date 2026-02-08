@@ -41,11 +41,11 @@ import app.morphe.gui.data.repository.PatchRepository
 import app.morphe.gui.util.PatchService
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
-import app.morphe.gui.ui.components.SettingsButton
+import app.morphe.gui.ui.components.TopBarRow
 import app.morphe.gui.ui.theme.MorpheColors
 import androidx.compose.runtime.rememberCoroutineScope
-import app.morphe.gui.util.AdbDevice
 import app.morphe.gui.util.AdbManager
+import app.morphe.gui.util.DeviceMonitor
 import kotlinx.coroutines.launch
 import app.morphe.gui.util.ChecksumStatus
 import app.morphe.gui.util.DownloadUrlResolver.openUrlAndFollowRedirects
@@ -232,8 +232,8 @@ fun QuickPatchContent(viewModel: QuickPatchViewModel) {
                 }
             }
 
-            // Settings button in top-right corner
-            SettingsButton(
+            // Top bar (device indicator + settings) in top-right corner
+            TopBarRow(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(24.dp)
@@ -538,38 +538,10 @@ private fun CompletedContent(
     val outputFile = File(outputPath)
     val scope = rememberCoroutineScope()
     val adbManager = remember { AdbManager() }
-    var isAdbAvailable by remember { mutableStateOf<Boolean?>(null) }
-    var connectedDevices by remember { mutableStateOf<List<AdbDevice>>(emptyList()) }
-    var selectedDevice by remember { mutableStateOf<AdbDevice?>(null) }
+    val monitorState by DeviceMonitor.state.collectAsState()
     var isInstalling by remember { mutableStateOf(false) }
     var installError by remember { mutableStateOf<String?>(null) }
     var installSuccess by remember { mutableStateOf(false) }
-
-    fun refreshDevices() {
-        scope.launch {
-            val result = adbManager.getConnectedDevices()
-            result.fold(
-                onSuccess = { devices ->
-                    connectedDevices = devices
-                    val readyDevices = devices.filter { it.isReady }
-                    if (readyDevices.size == 1) {
-                        selectedDevice = readyDevices.first()
-                    }
-                },
-                onFailure = {
-                    connectedDevices = emptyList()
-                    selectedDevice = null
-                }
-            )
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        isAdbAvailable = adbManager.isAdbAvailable()
-        if (isAdbAvailable == true) {
-            refreshDevices()
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -648,10 +620,11 @@ private fun CompletedContent(
             }
         }
 
-        if (isAdbAvailable == true) {
+        if (monitorState.isAdbAvailable == true) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            val readyDevices = connectedDevices.filter { it.isReady }
+            val readyDevices = monitorState.devices.filter { it.isReady }
+            val selectedDevice = monitorState.selectedDevice
 
             if (installSuccess) {
                 Surface(
@@ -718,10 +691,6 @@ private fun CompletedContent(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                TextButton(onClick = { refreshDevices() }) {
-                    Text("Refresh", fontSize = 12.sp)
-                }
             }
 
             installError?.let { error ->
@@ -1042,7 +1011,7 @@ private fun VerificationStatusBanner(
 private fun openFilePicker(): File? {
     val chooser = JFileChooser().apply {
         dialogTitle = "Select APK"
-        fileFilter = FileNameExtensionFilter("APK Files", "apk")
+        fileFilter = FileNameExtensionFilter("APK Files (*.apk, *.apkm)", "apk", "apkm")
         isAcceptAllFileFilterUsed = false
     }
 

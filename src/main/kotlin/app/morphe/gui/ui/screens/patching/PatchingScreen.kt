@@ -25,7 +25,9 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import app.morphe.gui.data.model.PatchConfig
 import org.koin.core.parameter.parametersOf
+import app.morphe.gui.ui.components.DeviceIndicator
 import app.morphe.gui.ui.components.SettingsButton
+import app.morphe.gui.ui.components.TopBarRow
 import app.morphe.gui.ui.screens.result.ResultScreen
 import app.morphe.gui.ui.theme.MorpheColors
 import app.morphe.gui.util.FileUtils
@@ -115,7 +117,8 @@ fun PatchingScreenContent(viewModel: PatchingViewModel) {
                             Text("Cancel")
                         }
                     }
-                    SettingsButton(allowCacheClear = false)
+                    TopBarRow(allowCacheClear = false)
+                    Spacer(Modifier.width(12.dp))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface

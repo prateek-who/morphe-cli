@@ -1,5 +1,7 @@
 package app.morphe.gui.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +14,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,11 +69,29 @@ fun SettingsDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ThemePreference.entries.forEach { theme ->
-                        FilterChip(
-                            selected = currentTheme == theme,
-                            onClick = { onThemeChange(theme) },
-                            label = { Text(theme.toDisplayName()) }
-                        )
+                        val isSelected = currentTheme == theme
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) MorpheColors.Blue.copy(alpha = 0.15f)
+                                    else Color.Transparent,
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = if (isSelected) MorpheColors.Blue.copy(alpha = 0.5f)
+                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onThemeChange(theme) }
+                        ) {
+                            Text(
+                                text = theme.toDisplayName(),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) MorpheColors.Blue
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 
@@ -238,8 +260,14 @@ fun SettingsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    "Close",
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     )

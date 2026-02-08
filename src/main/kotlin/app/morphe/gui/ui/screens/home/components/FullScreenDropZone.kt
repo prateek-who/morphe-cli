@@ -18,6 +18,7 @@ fun FullScreenDropZone(
     isDragHovering: Boolean,
     onDragHoverChange: (Boolean) -> Unit,
     onFilesDropped: (List<File>) -> Unit,
+    enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val dragAndDropTarget = remember {
@@ -40,6 +41,7 @@ fun FullScreenDropZone(
 
             override fun onDrop(event: DragAndDropEvent): Boolean {
                 onDragHoverChange(false)
+                if (!enabled) return false
                 val transferable = event.awtTransferable
                 return try {
                     if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
