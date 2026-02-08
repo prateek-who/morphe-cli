@@ -51,6 +51,7 @@ import java.awt.datatransfer.StringSelection
 
 /**
  * Screen for selecting which patches to apply.
+ * This screen is the one that selects which patch options need to be applied. Eg: Custom Branding, Spoof App Version, etc.
  */
 data class PatchSelectionScreen(
     val apkPath: String,

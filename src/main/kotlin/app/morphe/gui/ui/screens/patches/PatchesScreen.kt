@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -32,7 +34,8 @@ import app.morphe.gui.ui.theme.MorpheColors
 import java.io.File
 
 /**
- * Screen for selecting patches to apply.
+ * Screen for selecting patch version to apply.
+ * This is the screen that selects the patches.mpp file
  */
 data class PatchesScreen(
     val apkPath: String,
@@ -299,75 +302,214 @@ private fun ReleaseCard(
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
     }
 
+    var isExpanded by remember { mutableStateOf(false) }
+    val hasNotes = !release.body.isNullOrBlank()
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = release.tagName,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (release.isDevRelease()) {
+                            Surface(
+                                color = MorpheColors.Teal.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "DEV",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MorpheColors.Teal,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Show .mpp file info if available
+                    release.assets.find { it.isMpp() }?.let { mppAsset ->
+                        Text(
+                            text = "${mppAsset.name} (${mppAsset.getFormattedSize()})",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     Text(
-                        text = release.tagName,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = "Published: ${formatDate(release.publishedAt)}",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
-                    if (release.isDevRelease()) {
+
+                    if (hasNotes) {
+                        Spacer(modifier = Modifier.height(4.dp))
                         Surface(
-                            color = MorpheColors.Teal.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(4.dp)
+                            color = MorpheColors.Blue.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { isExpanded = !isExpanded }
                         ) {
-                            Text(
-                                text = "DEV",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MorpheColors.Teal,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = if (isExpanded) "Hide patch notes" else "Patch notes",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MorpheColors.Blue
+                                )
+                                Icon(
+                                    imageVector = if (isExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = MorpheColors.Blue,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Show .mpp file info if available
-                release.assets.find { it.isMpp() }?.let { mppAsset ->
-                    Text(
-                        text = "${mppAsset.name} (${mppAsset.getFormattedSize()})",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = MorpheColors.Blue,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-
-                Text(
-                    text = "Published: ${formatDate(release.publishedAt)}",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
             }
 
-            if (isSelected) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Selected",
-                    tint = MorpheColors.Blue,
-                    modifier = Modifier.size(24.dp)
+            // Expandable release notes
+            if (isExpanded && hasNotes) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+                FormattedReleaseNotes(
+                    markdown = release.body.orEmpty(),
+                    modifier = Modifier.padding(16.dp)
                 )
             }
         }
     }
+}
+
+/**
+ * Renders GitHub release notes markdown as formatted Compose text.
+ */
+@Composable
+private fun FormattedReleaseNotes(markdown: String, modifier: Modifier = Modifier) {
+    val lines = parseMarkdown(markdown)
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        lines.forEach { line ->
+            when (line) {
+                is MdLine.Header -> Text(
+                    text = line.text,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                is MdLine.SubHeader -> Text(
+                    text = line.text,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                is MdLine.Bullet -> {
+                    Row {
+                        Text(
+                            text = "\u2022  ",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = line.text,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+                is MdLine.Plain -> Text(
+                    text = line.text,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+            }
+        }
+    }
+}
+
+private sealed class MdLine {
+    data class Header(val text: String) : MdLine()
+    data class SubHeader(val text: String) : MdLine()
+    data class Bullet(val text: String) : MdLine()
+    data class Plain(val text: String) : MdLine()
+}
+
+private fun parseMarkdown(markdown: String): List<MdLine> {
+    return markdown.lines()
+        .filter { it.isNotBlank() }
+        .map { line ->
+            val trimmed = line.trim()
+            when {
+                trimmed.startsWith("# ") -> MdLine.Header(cleanMarkdown(trimmed.removePrefix("# ")))
+                trimmed.startsWith("## ") -> MdLine.Header(cleanMarkdown(trimmed.removePrefix("## ")))
+                trimmed.startsWith("### ") -> MdLine.SubHeader(cleanMarkdown(trimmed.removePrefix("### ")))
+                trimmed.startsWith("* ") -> MdLine.Bullet(cleanMarkdown(trimmed.removePrefix("* ")))
+                trimmed.startsWith("- ") -> MdLine.Bullet(cleanMarkdown(trimmed.removePrefix("- ")))
+                else -> MdLine.Plain(cleanMarkdown(trimmed))
+            }
+        }
+}
+
+/**
+ * Strip markdown syntax to plain readable text:
+ * - **bold** → bold
+ * - [text](url) → text
+ * - ([hash](url)) → remove entirely (commit refs)
+ */
+private fun cleanMarkdown(text: String): String {
+    var result = text
+    // Remove commit refs like ([abc1234](https://...))
+    result = result.replace(Regex("""\(\[[\da-f]{7,}]\([^)]*\)\)"""), "")
+    // [text](url) → text
+    result = result.replace(Regex("""\[([^\]]*?)]\([^)]*\)"""), "$1")
+    // **bold** → bold
+    result = result.replace(Regex("""\*\*(.+?)\*\*"""), "$1")
+    // Clean up extra whitespace
+    result = result.replace(Regex("""\s+"""), " ").trim()
+    return result
 }
 
 @Composable
@@ -460,15 +602,24 @@ private fun BottomActionBar(
 
 private fun formatDate(isoDate: String): String {
     return try {
-        // Simple date formatting - takes "2024-01-15T10:30:00Z" and returns "Jan 15, 2024"
+        // Takes "2024-01-15T10:30:00Z" and returns "Jan 15, 2024 at 10:30 AM"
         val datePart = isoDate.substringBefore("T")
+        val timePart = isoDate.substringAfter("T").substringBefore("Z").substringBefore("+")
         val parts = datePart.split("-")
         if (parts.size == 3) {
             val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
             val month = months.getOrElse(parts[1].toInt() - 1) { "???" }
             val day = parts[2].toInt()
             val year = parts[0]
-            "$month $day, $year"
+            val timeParts = timePart.split(":")
+            val timeStr = if (timeParts.size >= 2) {
+                val hour = timeParts[0].toInt()
+                val minute = timeParts[1]
+                val amPm = if (hour >= 12) "PM" else "AM"
+                val hour12 = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+                " at $hour12:$minute $amPm UTC"
+            } else ""
+            "$month $day, $year$timeStr"
         } else {
             datePart
         }
