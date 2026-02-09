@@ -415,17 +415,6 @@ internal object PatchCommand : Runnable {
                         patcherResult.applyTo(this)
                     }
                 )
-            }.also { rebuiltApk ->
-                if (striplibs.isNotEmpty()) {
-                    patchingResult.addStepResult(
-                        PatchingStep.STRIPPING_LIBS,
-                        {
-                            ApkLibraryStripper.stripLibraries(rebuiltApk, striplibs) { msg ->
-                                logger.info(msg)
-                            }
-                        }
-                    )
-                }
             }.let { patchedApkFile ->
                 if (!mount && !unsigned) {
                     patchingResult.addStepResult(
