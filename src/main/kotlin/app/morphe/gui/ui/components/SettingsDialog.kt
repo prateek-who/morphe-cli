@@ -40,6 +40,7 @@ fun SettingsDialog(
 ) {
     var showClearCacheConfirm by remember { mutableStateOf(false) }
     var cacheCleared by remember { mutableStateOf(false) }
+    var cacheClearFailed by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -222,8 +223,13 @@ fun SettingsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (cacheCleared) MorpheColors.Teal else MaterialTheme.colorScheme.error,
-                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        contentColor = when {
+                            cacheCleared -> MorpheColors.Teal
+                            cacheClearFailed -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.error
+                        },
+                        disabledContentColor = if (cacheCleared) MorpheColors.Teal.copy(alpha = 0.7f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 ) {
                     Icon(
@@ -236,6 +242,7 @@ fun SettingsDialog(
                         when {
                             !allowCacheClear -> "Clear Cache (disabled during patching)"
                             cacheCleared -> "Cache Cleared"
+                            cacheClearFailed -> "Clear Cache Failed (files in use)"
                             else -> "Clear Cache"
                         }
                     )
@@ -284,8 +291,9 @@ fun SettingsDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        clearAllCache()
-                        cacheCleared = true
+                        val success = clearAllCache()
+                        cacheCleared = success
+                        cacheClearFailed = !success
                         showClearCacheConfirm = false
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -322,12 +330,27 @@ private fun calculateCacheSize(): String {
     }
 }
 
-private fun clearAllCache() {
-    try {
-        FileUtils.getPatchesDir().listFiles()?.forEach { it.delete() }
+private fun clearAllCache(): Boolean {
+    return try {
+        var failedCount = 0
+        FileUtils.getPatchesDir().listFiles()?.forEach { file ->
+            try {
+                java.nio.file.Files.delete(file.toPath())
+            } catch (e: Exception) {
+                failedCount++
+                Logger.error("Failed to delete ${file.name}: ${e.message}")
+            }
+        }
         FileUtils.cleanupAllTempDirs()
-        Logger.info("Cache cleared successfully")
+        if (failedCount > 0) {
+            Logger.error("Cache clear incomplete: $failedCount file(s) could not be deleted (may be locked)")
+            false
+        } else {
+            Logger.info("Cache cleared successfully")
+            true
+        }
     } catch (e: Exception) {
         Logger.error("Failed to clear cache", e)
+        false
     }
 }

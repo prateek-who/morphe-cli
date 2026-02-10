@@ -42,23 +42,32 @@ class PatchService {
             }
 
             Logger.info("Loading patches from: $patchesFilePath")
-            val patches = loadPatchesFromJar(setOf(patchFile))
 
-            // Convert library patches to GUI model
-            val guiPatches = patches.map { it.toGuiPatch() }
+            // Copy to temp file so URLClassLoader locks the copy, not the cached original.
+            // On Windows, the classloader holds the file locked and prevents deletion.
+            val tempCopy = File.createTempFile("morphe-patches-", ".mpp")
+            try {
+                patchFile.copyTo(tempCopy, overwrite = true)
+                val patches = loadPatchesFromJar(setOf(tempCopy))
 
-            // Filter by package name if specified
-            val filtered = if (packageName != null) {
-                guiPatches.filter { patch ->
-                    patch.compatiblePackages.isEmpty() || // Universal patches
-                    patch.compatiblePackages.any { it.name == packageName }
+                // Convert library patches to GUI model
+                val guiPatches = patches.map { it.toGuiPatch() }
+
+                // Filter by package name if specified
+                val filtered = if (packageName != null) {
+                    guiPatches.filter { patch ->
+                        patch.compatiblePackages.isEmpty() || // Universal patches
+                        patch.compatiblePackages.any { it.name == packageName }
+                    }
+                } else {
+                    guiPatches
                 }
-            } else {
-                guiPatches
-            }
 
-            Logger.info("Loaded ${filtered.size} patches" + (packageName?.let { " for $it" } ?: ""))
-            Result.success(filtered)
+                Logger.info("Loaded ${filtered.size} patches" + (packageName?.let { " for $it" } ?: ""))
+                Result.success(filtered)
+            } finally {
+                tempCopy.deleteOnExit()
+            }
         } catch (e: Exception) {
             Logger.error("Failed to load patches", e)
             Result.failure(e)
@@ -95,7 +104,10 @@ class PatchService {
             }
 
             onProgress("Loading patches...")
-            val patches = loadPatchesFromJar(setOf(patchFile))
+            // Copy to temp file so URLClassLoader locks the copy, not the cached original.
+            val patchTempCopy = File(tempDir, patchFile.name)
+            patchFile.copyTo(patchTempCopy, overwrite = true)
+            val patches = loadPatchesFromJar(setOf(patchTempCopy))
 
             // Handle APKM format (split APK bundle)
             var mergedApkToCleanup: File? = null

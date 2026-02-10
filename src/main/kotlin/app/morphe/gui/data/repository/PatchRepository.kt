@@ -168,9 +168,22 @@ class PatchRepository(
      */
     fun clearCache(): Boolean {
         return try {
-            FileUtils.getPatchesDir().listFiles()?.forEach { it.delete() }
-            Logger.info("Patches cache cleared")
-            true
+            var failedCount = 0
+            FileUtils.getPatchesDir().listFiles()?.forEach { file ->
+                try {
+                    java.nio.file.Files.delete(file.toPath())
+                } catch (e: Exception) {
+                    failedCount++
+                    Logger.error("Failed to delete ${file.name}: ${e.message}")
+                }
+            }
+            if (failedCount > 0) {
+                Logger.error("Patches cache clear incomplete: $failedCount file(s) locked")
+                false
+            } else {
+                Logger.info("Patches cache cleared")
+                true
+            }
         } catch (e: Exception) {
             Logger.error("Failed to clear patches cache", e)
             false

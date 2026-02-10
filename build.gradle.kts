@@ -90,9 +90,13 @@ dependencies {
     implementation(files(strippedApkEditorLib))
 
     // -- Compose Desktop ---------------------------------------------------
-    // OS-specific: JAR only runs on the OS it was built on.
-    // Build once per target OS (macOS, Linux, Windows).
-    implementation(compose.desktop.currentOs)
+    // Platform-independent: single JAR runs on all supported OSes.
+    // Skiko auto-detects the OS at runtime and loads the correct native library.
+    implementation(compose.desktop.macos_arm64)
+    implementation(compose.desktop.macos_x64)
+    implementation(compose.desktop.linux_x64)
+    implementation(compose.desktop.linux_arm64)
+    implementation(compose.desktop.windows_x64)
     implementation(compose.components.resources)
     @Suppress("DEPRECATION")
     implementation(compose.material3)
