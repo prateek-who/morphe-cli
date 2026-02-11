@@ -80,5 +80,5 @@ data class PatchConfig(
     val disabledPatches: List<String> = emptyList(),
     val patchOptions: Map<String, String> = emptyMap(),
     val useExclusiveMode: Boolean = false,
-    val riplibs: List<String> = emptyList()
+    val striplibs: List<String> = emptyList()
 )

@@ -159,10 +159,6 @@ tasks {
             "/prebuilt/windows/aapt.exe",
             "/prebuilt/*/aapt_*",
         )
-        exclude("/prebuilt/linux/aapt")
-        exclude("/prebuilt/windows/aapt.exe")
-        exclude("/prebuilt/*/aapt_*")
-
         minimize {
             exclude(dependency("org.bouncycastle:.*"))
             exclude(dependency("app.morphe:morphe-patcher"))

@@ -192,7 +192,7 @@ class PatchSelectionViewModel(
             .map { it.name }
 
         // Only set riplibs if user deselected any architecture (keeps = selected ones)
-        val riplibs = if (_uiState.value.selectedArchitectures.size < apkArchitectures.size && apkArchitectures.size > 1) {
+        val striplibs = if (_uiState.value.selectedArchitectures.size < apkArchitectures.size && apkArchitectures.size > 1) {
             _uiState.value.selectedArchitectures.toList()
         } else {
             emptyList()
@@ -205,7 +205,7 @@ class PatchSelectionViewModel(
             enabledPatches = selectedPatchNames,
             disabledPatches = disabledPatchNames,
             useExclusiveMode = true,
-            riplibs = riplibs
+            striplibs = striplibs
         )
     }
 
@@ -236,8 +236,8 @@ class PatchSelectionViewModel(
             .filter { _uiState.value.selectedPatches.contains(it.uniqueId) }
             .map { it.name }
 
-        // riplibs flag: only when user deselected at least one architecture
-        val riplibsArg = if (_uiState.value.selectedArchitectures.size < apkArchitectures.size && apkArchitectures.size > 1) {
+        // striplibs flag: only when user deselected at least one architecture
+        val striplibsArg = if (_uiState.value.selectedArchitectures.size < apkArchitectures.size && apkArchitectures.size > 1) {
             _uiState.value.selectedArchitectures.joinToString(",")
         } else {
             null
@@ -250,8 +250,8 @@ class PatchSelectionViewModel(
             sb.append("  -o ${outputFileName} \\\n")
             sb.append("  --exclusive \\\n")
 
-            if (riplibsArg != null) {
-                sb.append("  --riplibs $riplibsArg \\\n")
+            if (striplibsArg != null) {
+                sb.append("  --striplibs $striplibsArg \\\n")
             }
 
             selectedPatchNames.forEachIndexed { index, patch ->
@@ -268,8 +268,8 @@ class PatchSelectionViewModel(
         } else {
             // Compact mode - single line that wraps naturally
             val patches = selectedPatchNames.joinToString(" ") { "-e \"$it\"" }
-            val riplibsPart = if (riplibsArg != null) " --riplibs $riplibsArg" else ""
-            "java -jar morphe-cli.jar patch -p ${patchesFile.name} -o $outputFileName --exclusive$riplibsPart $patches ${inputFile.name}"
+            val striplibsPart = if (striplibsArg != null) " --striplibs $striplibsArg" else ""
+            "java -jar morphe-cli.jar patch -p ${patchesFile.name} -o $outputFileName --exclusive$striplibsPart $patches ${inputFile.name}"
         }
     }
 

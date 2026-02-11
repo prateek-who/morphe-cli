@@ -1,23 +1,14 @@
 package app.morphe.gui.util
 
+import app.morphe.engine.PatchEngine
 import app.morphe.gui.data.model.CompatiblePackage
 import app.morphe.gui.data.model.Patch
 import app.morphe.gui.data.model.PatchOption
 import app.morphe.gui.data.model.PatchOptionType
-import app.morphe.library.ApkUtils
-import app.morphe.library.ApkUtils.applyTo
-import app.morphe.library.setOptions
-import app.morphe.patcher.Patcher
-import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.patch.loadPatchesFromJar
-import com.reandroid.apkeditor.merge.Merger
-import com.reandroid.apkeditor.merge.MergerOptions
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.PrintWriter
-import java.io.StringWriter
 import kotlin.reflect.KType
 import app.morphe.patcher.patch.Patch as LibraryPatch
 
@@ -76,6 +67,7 @@ class PatchService {
 
     /**
      * Execute patching operation with progress callbacks.
+     * Delegates to PatchEngine for the actual pipeline.
      */
     suspend fun patch(
         patchesFilePath: String,
@@ -85,12 +77,9 @@ class PatchService {
         disabledPatches: List<String> = emptyList(),
         options: Map<String, String> = emptyMap(),
         exclusiveMode: Boolean = false,
-        riplibs: List<String> = emptyList(),
+        striplibs: List<String> = emptyList(),
         onProgress: (String) -> Unit = {}
     ): Result<PatchResult> = withContext(Dispatchers.IO) {
-        val tempDir = FileUtils.createPatchingTempDir()
-        val tempOutputPath = File(tempDir, File(outputApkPath).name)
-
         try {
             val patchFile = File(patchesFilePath)
             val inputApk = File(inputApkPath)
@@ -103,171 +92,46 @@ class PatchService {
                 return@withContext Result.failure(Exception("Input APK not found"))
             }
 
+            // Load patches (copy to temp to avoid Windows file lock)
             onProgress("Loading patches...")
-            // Copy to temp file so URLClassLoader locks the copy, not the cached original.
-            val patchTempCopy = File(tempDir, patchFile.name)
-            patchFile.copyTo(patchTempCopy, overwrite = true)
-            val patches = loadPatchesFromJar(setOf(patchTempCopy))
+            val patchTempCopy = File.createTempFile("morphe-patches-", ".mpp")
+            try {
+                patchFile.copyTo(patchTempCopy, overwrite = true)
+                val loadedPatches = loadPatchesFromJar(setOf(patchTempCopy))
 
-            // Handle APKM format (split APK bundle)
-            var mergedApkToCleanup: File? = null
-            val actualInputApk = if (inputApk.extension.equals("apkm", ignoreCase = true)) {
-                onProgress("Converting APKM to APK...")
-                val mergedApk = File(tempDir, "${inputApk.nameWithoutExtension}-merged.apk")
-                val mergerOptions = MergerOptions().apply {
-                    this.inputFile = inputApk
-                    this.outputFile = mergedApk
-                    cleanMeta = true
-                }
-                Merger(mergerOptions).run()
-                mergedApkToCleanup = mergedApk
-                mergedApk
-            } else {
-                inputApk
-            }
+                // Convert GUI's flat "patchName.optionKey" -> value map
+                // to engine's Map<patchName, Map<optionKey, value>> format
+                val patchOptions = enabledPatches.associateWith { patchName ->
+                    options.filterKeys { it.startsWith("$patchName.") }
+                        .mapKeys { it.key.removePrefix("$patchName.") }
+                        .mapValues { it.value as Any? }
+                }.filter { it.value.isNotEmpty() }
 
-            val patcherTempDir = File(tempDir, "patcher")
-            patcherTempDir.mkdirs()
-
-            onProgress("Initializing patcher...")
-            val patcherConfig = PatcherConfig(
-                actualInputApk,
-                patcherTempDir,
-                null, // aapt binary path
-                patcherTempDir.absolutePath
-            )
-
-            val appliedPatches = mutableListOf<String>()
-            val failedPatches = mutableListOf<Pair<String, String>>()
-
-            Patcher(patcherConfig).use { patcher ->
-                val packageName = patcher.context.packageMetadata.packageName
-                val packageVersion = patcher.context.packageMetadata.packageVersion
-
-                onProgress("Filtering patches for $packageName v$packageVersion...")
-
-                // Filter patches based on compatibility and selection
-                val filteredPatches = patches.filter { patch ->
-                    val patchName = patch.name ?: return@filter false
-
-                    // Check if explicitly disabled
-                    if (patchName in disabledPatches) {
-                        onProgress("Skipping disabled: $patchName")
-                        return@filter false
-                    }
-
-                    // Check package compatibility
-                    val isCompatible = patch.compatiblePackages?.let { packages ->
-                        packages.any { (name, versions) ->
-                            name == packageName && (versions?.isEmpty() != false || versions.contains(packageVersion))
-                        }
-                    } ?: true // Universal patches
-
-                    if (!isCompatible) {
-                        return@filter false
-                    }
-
-                    // In exclusive mode, only include explicitly enabled patches
-                    if (exclusiveMode) {
-                        patchName in enabledPatches
-                    } else {
-                        // Include if: enabled by default OR explicitly enabled
-                        patch.use || patchName in enabledPatches
-                    }
-                }.toSet()
-
-                onProgress("Applying ${filteredPatches.size} patches...")
-
-                // Set patch options if any
-                if (options.isNotEmpty()) {
-                    val optionsMap = enabledPatches.associateWith { patchName ->
-                        options.filterKeys { it.startsWith("$patchName.") }
-                            .mapKeys { it.key.removePrefix("$patchName.") }
-                            .mapValues { it.value as Any? }
-                            .toMutableMap()
-                    }.filter { it.value.isNotEmpty() }
-
-                    if (optionsMap.isNotEmpty()) {
-                        filteredPatches.setOptions(optionsMap)
-                    }
-                }
-
-                patcher += filteredPatches
-
-                // Execute patches
-                runBlocking {
-                    patcher().collect { patchResult ->
-                        val patchName = patchResult.patch.name ?: "Unknown"
-                        patchResult.exception?.let { exception ->
-                            val error = StringWriter().use { writer ->
-                                exception.printStackTrace(PrintWriter(writer))
-                                writer.toString()
-                            }
-                            onProgress("FAILED: $patchName")
-                            Logger.error("Patch failed: $patchName\n$error")
-                            failedPatches.add(patchName to error)
-                        } ?: run {
-                            onProgress("Applied: $patchName")
-                            Logger.info("Patch applied: $patchName")
-                            appliedPatches.add(patchName)
-                        }
-                    }
-                }
-
-                // Get patcher result
-                val patcherResult = patcher.get()
-
-                onProgress("Rebuilding APK...")
-                val rebuiltApk = File(tempDir, "rebuilt.apk")
-                actualInputApk.copyTo(rebuiltApk, overwrite = true)
-                patcherResult.applyTo(rebuiltApk)
-
-                if (riplibs.isNotEmpty()) {
-                    onProgress("Stripping native libraries...")
-                    ApkLibraryStripper.stripLibraries(rebuiltApk, riplibs) { onProgress(it) }
-                }
-
-                onProgress("Signing APK...")
-                val keystorePath = File(tempDir, "morphe.keystore")
-                ApkUtils.signApk(
-                    rebuiltApk,
-                    tempOutputPath,
-                    "Morphe",
-                    ApkUtils.KeyStoreDetails(
-                        keystorePath,
-                        null, // password
-                        "Morphe Key",
-                        "" // entry password
-                    )
+                val config = PatchEngine.Config(
+                    inputApk = inputApk,
+                    patches = loadedPatches,
+                    outputApk = outputFile,
+                    enabledPatches = enabledPatches.toSet(),
+                    disabledPatches = disabledPatches.toSet(),
+                    exclusiveMode = exclusiveMode,
+                    patchOptions = patchOptions,
+                    architecturesToKeep = striplibs,
                 )
 
-                // Move to final location
-                outputFile.parentFile?.mkdirs()
-                tempOutputPath.copyTo(outputFile, overwrite = true)
+                val engineResult = PatchEngine.patch(config, onProgress)
 
-                onProgress("Patching complete!")
-                Logger.info("Patched APK saved to: ${outputFile.absolutePath}")
-
-                // Cleanup merged APK if created
-                mergedApkToCleanup?.delete()
+                Result.success(PatchResult(
+                    success = engineResult.success,
+                    outputPath = engineResult.outputPath,
+                    appliedPatches = engineResult.appliedPatches,
+                    failedPatches = engineResult.failedPatches.map { it.name },
+                ))
+            } finally {
+                patchTempCopy.delete()
             }
-
-            Result.success(PatchResult(
-                success = failedPatches.isEmpty(),
-                outputPath = outputFile.absolutePath,
-                appliedPatches = appliedPatches,
-                failedPatches = failedPatches.map { it.first }
-            ))
         } catch (e: Exception) {
             Logger.error("Patching failed", e)
             Result.failure(e)
-        } finally {
-            // Cleanup temp directory
-            try {
-                tempDir.deleteRecursively()
-            } catch (e: Exception) {
-                Logger.warn("Failed to cleanup temp directory: ${e.message}")
-            }
         }
     }
 
