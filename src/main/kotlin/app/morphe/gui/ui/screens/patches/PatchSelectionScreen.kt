@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -107,6 +108,7 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
     // State for command preview
     var cleanMode by remember { mutableStateOf(false) }
     var showCommandPreview by remember { mutableStateOf(false) }
+    var continueOnError by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -149,7 +151,7 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
 
                     Spacer(Modifier.width(12.dp))
 
-                    // Command preview toggle
+                    // Command preview toggle & continue-on-error toggle
                     if (!uiState.isLoading && uiState.allPatches.isNotEmpty()) {
                         val isActive = showCommandPreview
                         Surface(
@@ -169,6 +171,39 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
                                 tint = if (isActive) MorpheColors.Teal else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(8.dp).size(20.dp)
                             )
+                        }
+
+                        Spacer(Modifier.width(6.dp))
+
+                        // Continue on error toggle
+                        TooltipBox(
+                            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(),
+                            tooltip = {
+                                PlainTooltip {
+                                    Text("Continue patching even if a patch fails")
+                                }
+                            },
+                            state = rememberTooltipState()
+                        ) {
+                            Surface(
+                                onClick = { continueOnError = !continueOnError },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (continueOnError) MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (continueOnError) MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlaylistRemove,
+                                    contentDescription = "Continue on error",
+                                    tint = if (continueOnError) MaterialTheme.colorScheme.error
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(8.dp).size(20.dp)
+                                )
+                            }
                         }
                     }
 
@@ -191,8 +226,8 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
         ) {
             // Command preview - collapsible via top bar button
             if (!uiState.isLoading && uiState.allPatches.isNotEmpty()) {
-                val commandPreview = remember(uiState.selectedPatches, uiState.selectedArchitectures, cleanMode) {
-                    viewModel.getCommandPreview(cleanMode)
+                val commandPreview = remember(uiState.selectedPatches, uiState.selectedArchitectures, cleanMode, continueOnError) {
+                    viewModel.getCommandPreview(cleanMode, continueOnError)
                 }
                 AnimatedVisibility(
                     visible = showCommandPreview,
@@ -322,7 +357,7 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
                         ) {
                             Button(
                                 onClick = {
-                                    val config = viewModel.createPatchConfig()
+                                    val config = viewModel.createPatchConfig(continueOnError)
                                     navigator.push(PatchingScreen(config))
                                 },
                                 enabled = uiState.selectedPatches.isNotEmpty(),

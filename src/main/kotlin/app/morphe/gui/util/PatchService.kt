@@ -78,6 +78,7 @@ class PatchService {
         options: Map<String, String> = emptyMap(),
         exclusiveMode: Boolean = false,
         striplibs: List<String> = emptyList(),
+        continueOnError: Boolean = false,
         onProgress: (String) -> Unit = {}
     ): Result<PatchResult> = withContext(Dispatchers.IO) {
         try {
@@ -114,8 +115,10 @@ class PatchService {
                     enabledPatches = enabledPatches.toSet(),
                     disabledPatches = disabledPatches.toSet(),
                     exclusiveMode = exclusiveMode,
+                    forceCompatibility = true,
                     patchOptions = patchOptions,
                     architecturesToKeep = striplibs,
+                    failOnError = !continueOnError,
                 )
 
                 val engineResult = PatchEngine.patch(config, onProgress)

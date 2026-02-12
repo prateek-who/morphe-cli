@@ -317,13 +317,7 @@ class QuickPatchViewModel(
                 options = emptyMap(),
                 exclusiveMode = false,
                 onProgress = { message ->
-                    // Update status with current operation
-                    if (message.contains("patch", ignoreCase = true) ||
-                        message.contains("applying", ignoreCase = true) ||
-                        message.contains("Applied", ignoreCase = true)) {
-                        _uiState.value = _uiState.value.copy(statusMessage = message.take(60))
-                    }
-                    // Parse progress
+                    _uiState.value = _uiState.value.copy(statusMessage = message.take(60))
                     parseProgress(message)
                 }
             )

@@ -169,7 +169,7 @@ class PatchSelectionViewModel(
         return _uiState.value.allPatches.count { !it.isEnabled }
     }
 
-    fun createPatchConfig(): PatchConfig {
+    fun createPatchConfig(continueOnError: Boolean = false): PatchConfig {
         // Create app folder in the same location as the input APK
         val inputFile = File(apkPath)
         val appFolderName = apkName.replace(" ", "-")
@@ -206,7 +206,8 @@ class PatchSelectionViewModel(
             enabledPatches = selectedPatchNames,
             disabledPatches = disabledPatchNames,
             useExclusiveMode = true,
-            striplibs = striplibs
+            striplibs = striplibs,
+            continueOnError = continueOnError
         )
     }
 
@@ -232,7 +233,7 @@ class PatchSelectionViewModel(
      * Generate a preview of the CLI command that will be executed.
      * @param cleanMode If true, formats with newlines for readability. If false, compact single-line format.
      */
-    fun getCommandPreview(cleanMode: Boolean = false): String {
+    fun getCommandPreview(cleanMode: Boolean = false, continueOnError: Boolean = false): String {
         val inputFile = File(apkPath)
         val patchesFile = File(actualPatchesFilePath)
         val appFolderName = apkName.replace(" ", "-")
@@ -264,6 +265,11 @@ class PatchSelectionViewModel(
             sb.append("java -jar morphe-cli.jar patch \\\n")
             sb.append("  -p ${patchesFile.name} \\\n")
             sb.append("  -o ${outputFileName} \\\n")
+            sb.append("  --force \\\n")
+
+            if (continueOnError) {
+                sb.append("  --continue-on-error \\\n")
+            }
 
             if (useExclusive) {
                 sb.append("  --exclusive \\\n")
@@ -293,7 +299,8 @@ class PatchSelectionViewModel(
             val patches = flagPatches.joinToString(" ") { "$flag \"$it\"" }
             val exclusivePart = if (useExclusive) " --exclusive" else ""
             val striplibsPart = if (striplibsArg != null) " --striplibs $striplibsArg" else ""
-            "java -jar morphe-cli.jar patch -p ${patchesFile.name} -o $outputFileName$exclusivePart$striplibsPart $patches ${inputFile.name}"
+            val continueOnErrorPart = if (continueOnError) " --continue-on-error" else ""
+            "java -jar morphe-cli.jar patch -p ${patchesFile.name} -o $outputFileName --force$continueOnErrorPart$exclusivePart$striplibsPart $patches ${inputFile.name}"
         }
     }
 

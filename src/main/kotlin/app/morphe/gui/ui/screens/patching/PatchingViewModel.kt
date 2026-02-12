@@ -57,6 +57,7 @@ class PatchingViewModel(
                 options = config.patchOptions,
                 exclusiveMode = config.useExclusiveMode,
                 striplibs = config.striplibs,
+                continueOnError = config.continueOnError,
                 onProgress = { message ->
                     parseAndAddLog(message)
                 }
