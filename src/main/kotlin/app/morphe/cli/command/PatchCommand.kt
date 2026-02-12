@@ -1,14 +1,21 @@
 package app.morphe.cli.command
 
+import app.morphe.cli.command.model.FailedPatch
 import app.morphe.cli.command.model.PatchingResult
 import app.morphe.cli.command.model.PatchingStep
-import app.morphe.cli.command.model.PatchingStepResult
 import app.morphe.cli.command.model.addStepResult
 import app.morphe.cli.command.model.toSerializablePatch
-import app.morphe.engine.PatchEngine
+import app.morphe.engine.ApkLibraryStripper
 import app.morphe.library.ApkUtils
+import app.morphe.library.ApkUtils.applyTo
 import app.morphe.library.installation.installer.*
+import app.morphe.library.setOptions
+import app.morphe.patcher.Patcher
+import app.morphe.patcher.PatcherConfig
+import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.loadPatchesFromJar
+import com.reandroid.apkeditor.merge.Merger
+import com.reandroid.apkeditor.merge.MergerOptions
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -19,15 +26,21 @@ import picocli.CommandLine.Help.Visibility.ALWAYS
 import picocli.CommandLine.Model.CommandSpec
 import picocli.CommandLine.Spec
 import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.util.concurrent.Callable
 import java.util.logging.Logger
-import app.morphe.cli.command.model.FailedPatch as CliFailedPatch
 
 @OptIn(ExperimentalSerializationApi::class)
 @CommandLine.Command(
     name = "patch",
     description = ["Patch an APK file."],
 )
-internal object PatchCommand : Runnable {
+internal object PatchCommand : Callable<Int> {
+
+    private const val EXIT_CODE_SUCCESS = 0
+    private const val EXIT_CODE_ERROR = 1
+
     private val logger = Logger.getLogger(this::class.java.name)
 
     @Spec
@@ -256,7 +269,16 @@ internal object PatchCommand : Runnable {
     )
     private var striplibs: List<String> = emptyList()
 
-    override fun run() {
+    @CommandLine.Option(
+        names = ["--continue-on-error"],
+        description = ["Continue patching even if a patch fails. By default, patching stops on the first error."],
+        showDefaultValue = ALWAYS,
+    )
+    private var continueOnError: Boolean = false
+
+    override fun call(): Int {
+        // region Setup
+
         val outputFilePath =
             outputFilePath ?: File("").absoluteFile.resolve(
                 "${apk.nameWithoutExtension}-patched.apk",
@@ -271,7 +293,6 @@ internal object PatchCommand : Runnable {
             keyStoreFilePath ?: outputFilePath.parentFile
                 .resolve("${outputFilePath.nameWithoutExtension}.keystore")
 
-        // Set up ADB installer (CLI-only)
         val installer = if (deviceSerial != null) {
             val deviceSerial = deviceSerial!!.ifEmpty { null }
 
@@ -281,7 +302,7 @@ internal object PatchCommand : Runnable {
                 } else {
                     AdbInstaller(deviceSerial)
                 }
-            } catch (e: DeviceNotFoundException) {
+            } catch (_: DeviceNotFoundException) {
                 if (deviceSerial?.isNotEmpty() == true) {
                     logger.severe(
                         "Device with serial $deviceSerial not found to install to. " +
@@ -294,119 +315,199 @@ internal object PatchCommand : Runnable {
                     )
                 }
 
-                return
+                return EXIT_CODE_ERROR
             }
         } else {
             null
         }
 
-        // Resolve --ei/--di indices to patch names by pre-loading patches
-        val patchesList = loadPatchesFromJar(patchesFiles).toList()
-
-        val enabledPatchNames = selection.mapNotNull { sel ->
-            sel.enabled?.let { en ->
-                en.selector.name ?: patchesList.getOrNull(en.selector.index!!)?.name
-            }
-        }.toSet()
-
-        val disabledPatchNames = selection.mapNotNull { sel ->
-            sel.disable?.let { dis ->
-                dis.selector.name ?: patchesList.getOrNull(dis.selector.index!!)?.name
-            }
-        }.filterNotNull().toSet()
-
-        // Build options map: Map<patchName, Map<optionKey, value>>
-        val patchOptions = selection.filter { it.enabled != null }
-            .associate { sel ->
-                val en = sel.enabled!!
-                val name = en.selector.name ?: patchesList[en.selector.index!!].name!!
-                name to en.options.toMap()
-            }
-            .filter { it.value.isNotEmpty() }
-
-        val config = PatchEngine.Config(
-            inputApk = apk,
-            patches = patchesList.toSet(),
-            outputApk = outputFilePath,
-            enabledPatches = enabledPatchNames,
-            disabledPatches = disabledPatchNames,
-            exclusiveMode = exclusive,
-            forceCompatibility = force,
-            patchOptions = patchOptions,
-            unsigned = mount || unsigned,
-            signerName = signer,
-            keystoreDetails = ApkUtils.KeyStoreDetails(
-                keystoreFilePath,
-                keyStorePassword,
-                keyStoreEntryAlias,
-                keyStoreEntryPassword,
-            ),
-            architecturesToKeep = striplibs,
-            aaptBinaryPath = aaptBinaryPath,
-            tempDir = temporaryFilesPath,
-        )
+        // endregion
 
         val patchingResult = PatchingResult()
+        var mergedApkToCleanup: File? = null
 
         try {
-            val engineResult = runBlocking {
-                PatchEngine.patch(config) { msg -> logger.info(msg) }
-            }
+            // region Load patches
 
-            patchingResult.packageName = engineResult.packageName
-            patchingResult.packageVersion = engineResult.packageVersion
-            patchingResult.success = engineResult.success
+            logger.info("Loading patches")
 
-            // Map engine step results to CLI model for --result-file
-            engineResult.stepResults.forEach { step ->
-                val cliStep = when (step.step) {
-                    PatchEngine.PatchStep.PATCHING -> PatchingStep.PATCHING
-                    PatchEngine.PatchStep.REBUILDING -> PatchingStep.REBUILDING
-                    PatchEngine.PatchStep.STRIPPING_LIBS -> PatchingStep.STRIPPING_LIBS
-                    PatchEngine.PatchStep.SIGNING -> PatchingStep.SIGNING
+            val patches = loadPatchesFromJar(patchesFiles)
+
+            // endregion
+
+            val patcherTemporaryFilesPath = temporaryFilesPath.resolve("patcher")
+
+            // Checking if the file is in apkm format (like reddit)
+            val inputApk = if (apk.extension.equals("apkm", ignoreCase = true)) {
+                logger.info("Merging APKM bundle")
+
+                // Save merged APK to output directory (will be cleaned up after patching)
+                val outputApk = outputFilePath.parentFile.resolve("${apk.nameWithoutExtension}-merged.apk")
+
+                // Use APKEditor's Merger directly (handles extraction and merging)
+                val mergerOptions = MergerOptions().apply {
+                    inputFile = apk  // Original APKM file
+                    outputFile = outputApk
+                    cleanMeta = true
                 }
-                patchingResult.patchingSteps.add(PatchingStepResult(cliStep, step.success, step.error))
+                Merger(mergerOptions).run()
+
+                mergedApkToCleanup = outputApk
+                outputApk
+            } else {
+                apk
             }
 
-            engineResult.appliedPatches.forEach { name ->
-                patchesList.find { it.name == name }?.let {
-                    patchingResult.appliedPatches.add(it.toSerializablePatch())
-                }
+            val (packageName, patcherResult) = Patcher(
+                PatcherConfig(
+                    inputApk,
+                    patcherTemporaryFilesPath,
+                    aaptBinaryPath?.path,
+                    patcherTemporaryFilesPath.absolutePath,
+                ),
+            ).use { patcher ->
+                val packageName = patcher.context.packageMetadata.packageName
+                val packageVersion = patcher.context.packageMetadata.packageVersion
+
+                patchingResult.packageName = packageName
+                patchingResult.packageVersion = packageVersion
+
+                val filteredPatches = patches.filterPatchSelection(packageName, packageVersion)
+
+                logger.info("Setting patch options")
+
+                val patchesList = patches.toList()
+                selection.filter { it.enabled != null }.associate {
+                    val enabledSelection = it.enabled!!
+
+                    (enabledSelection.selector.name ?: patchesList[enabledSelection.selector.index!!].name!!) to
+                            enabledSelection.options
+                }.let(filteredPatches::setOptions)
+
+                patcher += filteredPatches
+
+                // Execute patches.
+                patchingResult.addStepResult(
+                    PatchingStep.PATCHING,
+                    {
+                        runBlocking {
+                            patcher().collect { patchResult ->
+                                patchResult.exception?.let { exception ->
+                                    StringWriter().use { writer ->
+                                        exception.printStackTrace(PrintWriter(writer))
+
+                                        logger.severe("\"${patchResult.patch}\" failed:\n$writer")
+
+                                        patchingResult.failedPatches.add(
+                                            FailedPatch(
+                                                patchResult.patch.toSerializablePatch(),
+                                                writer.toString()
+                                            )
+                                        )
+                                        patchingResult.success = false
+
+                                        if (!continueOnError) {
+                                            throw PatchFailedException(
+                                                "\"${patchResult.patch}\" failed",
+                                                exception
+                                            )
+                                        }
+                                    }
+                                } ?: patchResult.patch.let {
+                                    patchingResult.appliedPatches.add(patchResult.patch.toSerializablePatch())
+                                    logger.info("\"${patchResult.patch}\" succeeded")
+                                }
+                            }
+                        }
+                    }
+                )
+
+                patcher.context.packageMetadata.packageName to patcher.get()
             }
-            engineResult.failedPatches.forEach { failed ->
-                patchesList.find { it.name == failed.name }?.let {
-                    patchingResult.failedPatches.add(CliFailedPatch(it.toSerializablePatch(), failed.error))
+
+            // region Save.
+
+            inputApk.copyTo(temporaryFilesPath.resolve(inputApk.name), overwrite = true).apply {
+                patchingResult.addStepResult(
+                    PatchingStep.REBUILDING,
+                    {
+                        patcherResult.applyTo(this)
+                    }
+                )
+            }.also { rebuiltApk ->
+                if (striplibs.isNotEmpty()) {
+                    patchingResult.addStepResult(
+                        PatchingStep.STRIPPING_LIBS,
+                        {
+                            ApkLibraryStripper.stripLibraries(rebuiltApk, striplibs) { msg ->
+                                logger.info(msg)
+                            }
+                        }
+                    )
+                }
+            }.let { patchedApkFile ->
+                if (!mount && !unsigned) {
+                    patchingResult.addStepResult(
+                        PatchingStep.SIGNING,
+                        {
+                            ApkUtils.signApk(
+                                patchedApkFile,
+                                outputFilePath,
+                                signer,
+                                ApkUtils.KeyStoreDetails(
+                                    keystoreFilePath,
+                                    keyStorePassword,
+                                    keyStoreEntryAlias,
+                                    keyStoreEntryPassword,
+                                ),
+                            )
+                        }
+                    )
+                } else {
+                    patchedApkFile.copyTo(outputFilePath, overwrite = true)
                 }
             }
 
             logger.info("Saved to $outputFilePath")
 
-            // ADB install (CLI-only)
-            if (engineResult.success) {
-                deviceSerial?.let {
-                    patchingResult.addStepResult(
-                        PatchingStep.INSTALLING,
-                        {
-                            runBlocking {
-                                val result = installer!!.install(
-                                    Installer.Apk(outputFilePath, engineResult.packageName),
-                                )
-                                when (result) {
-                                    RootInstallerResult.FAILURE -> {
-                                        logger.severe("Failed to mount the patched APK file")
-                                        throw IllegalStateException("Failed to mount the patched APK file")
-                                    }
-                                    is AdbInstallerResult.Failure -> {
-                                        logger.severe(result.exception.toString())
-                                        throw result.exception
-                                    }
-                                    else -> logger.info("Installed the patched APK file")
+            // endregion
+
+            // region Install.
+
+            deviceSerial?.let {
+                patchingResult.addStepResult(
+                    PatchingStep.INSTALLING,
+                    {
+                        runBlocking {
+                            val result = installer!!.install(Installer.Apk(outputFilePath, packageName))
+                            when (result) {
+                                RootInstallerResult.FAILURE -> {
+                                    logger.severe("Failed to mount the patched APK file")
+                                    throw IllegalStateException("Failed to mount the patched APK file")
                                 }
+                                is AdbInstallerResult.Failure -> {
+                                    logger.severe(result.exception.toString())
+                                    throw result.exception
+                                }
+                                else -> logger.info("Installed the patched APK file")
                             }
-                        },
-                    )
-                }
+                        }
+                    }
+                )
             }
+
+            // endregion
+        } catch (e: PatchFailedException) {
+            logger.severe("Patching aborted: ${e.message}")
+            logger.info(
+                "Use --continue-on-error to skip failed patches and continue patching"
+            )
+            return EXIT_CODE_ERROR
+        } catch (e: Exception) {
+            // Should never happen.
+            logger.severe("An unexpected error occurred: ${e.message}")
+            e.printStackTrace()
+            return EXIT_CODE_ERROR
         } finally {
             patchingResultOutputFilePath?.let { outputFile ->
                 outputFile.outputStream().use { outputStream ->
@@ -414,17 +515,100 @@ internal object PatchCommand : Runnable {
                 }
                 logger.info("Patching result saved to $outputFile")
             }
+
+            if (purge) {
+                logger.info("Purging temporary files")
+                purge(temporaryFilesPath)
+            }
+
+            // Clean up merged APK if we created one from APKM
+            mergedApkToCleanup?.let {
+                if (!it.delete()) {
+                    logger.warning("Could not clean up merged APK: ${it.path}")
+                }
+            }
         }
 
-        if (purge) {
-            logger.info("Purging temporary files")
-            val result =
-                if (temporaryFilesPath.deleteRecursively()) {
-                    "Purged resource cache directory"
-                } else {
-                    "Failed to purge resource cache directory"
-                }
-            logger.info(result)
+        return EXIT_CODE_SUCCESS
+    }
+
+    /**
+     * Filter the patches based on the selection.
+     *
+     * @param packageName The package name of the APK file to be patched.
+     * @param packageVersion The version of the APK file to be patched.
+     * @return The filtered patches.
+     */
+    private fun Set<Patch<*>>.filterPatchSelection(
+        packageName: String,
+        packageVersion: String,
+    ): Set<Patch<*>> = buildSet {
+        val enabledPatchesByName =
+            selection.mapNotNull { it.enabled?.selector?.name }.toSet()
+        val enabledPatchesByIndex =
+            selection.mapNotNull { it.enabled?.selector?.index }.toSet()
+
+        val disabledPatches =
+            selection.mapNotNull { it.disable?.selector?.name }.toSet()
+        val disabledPatchesByIndex =
+            selection.mapNotNull { it.disable?.selector?.index }.toSet()
+
+        this@filterPatchSelection.withIndex().forEach patchLoop@{ (i, patch) ->
+            val patchName = patch.name!!
+
+            val isManuallyDisabled = patchName in disabledPatches || i in disabledPatchesByIndex
+            if (isManuallyDisabled) return@patchLoop logger.info("\"$patchName\" disabled manually")
+
+            // Make sure the patch is compatible with the supplied APK files package name and version.
+            patch.compatiblePackages?.let { packages ->
+                packages.singleOrNull { (name, _) -> name == packageName }?.let { (_, versions) ->
+                    if (versions?.isEmpty() == true) {
+                        return@patchLoop logger.warning("\"$patchName\" incompatible with \"$packageName\"")
+                    }
+
+                    val matchesVersion =
+                        force || versions?.let { it.any { version -> version == packageVersion } } ?: true
+
+                    if (!matchesVersion) {
+                        return@patchLoop logger.warning(
+                            "\"$patchName\" incompatible with $packageName $packageVersion " +
+                                "but compatible with " +
+                                packages.joinToString("; ") { (packageName, versions) ->
+                                    packageName + " " + versions!!.joinToString(", ")
+                                },
+                        )
+                    }
+                } ?: return@patchLoop logger.fine(
+                    "\"$patchName\" incompatible with $packageName. " +
+                        "It is only compatible with " +
+                        packages.joinToString(", ") { (name, _) -> name },
+                )
+
+                return@let
+            } ?: logger.fine("\"$patchName\" has no package constraints")
+
+            val isEnabled = !exclusive && patch.use
+            val isManuallyEnabled = patchName in enabledPatchesByName || i in enabledPatchesByIndex
+
+            if (!(isEnabled || isManuallyEnabled)) {
+                return@patchLoop logger.info("\"$patchName\" disabled")
+            }
+
+            add(patch)
+
+            logger.fine("\"$patchName\" added")
         }
     }
+
+    private fun purge(resourceCachePath: File) {
+        val result =
+            if (resourceCachePath.deleteRecursively()) {
+                "Purged resource cache directory"
+            } else {
+                "Failed to purge resource cache directory"
+            }
+        logger.info(result)
+    }
 }
+
+private class PatchFailedException(message: String, cause: Throwable) : Exception(message, cause)
