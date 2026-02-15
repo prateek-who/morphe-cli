@@ -380,8 +380,11 @@ internal object PatchCommand : Callable<Int> {
                 selection.filter { it.enabled != null }.associate {
                     val enabledSelection = it.enabled!!
 
-                    (enabledSelection.selector.name ?: patchesList[enabledSelection.selector.index!!].name!!) to
-                            enabledSelection.options
+                    val resolvedName = enabledSelection.selector.name?.let { userInput ->
+                        patchesList.firstOrNull { it.name.equals(userInput, ignoreCase = true) }?.name ?: userInput
+                    } ?: patchesList[enabledSelection.selector.index!!].name!!
+
+                    resolvedName to enabledSelection.options
                 }.let(filteredPatches::setOptions)
 
                 patcher += filteredPatches
@@ -544,22 +547,19 @@ internal object PatchCommand : Callable<Int> {
         packageVersion: String,
     ): Set<Patch<*>> = buildSet {
         val enabledPatchesByName =
-            selection.mapNotNull { it.enabled?.selector?.name }.toSet()
+            selection.mapNotNull { it.enabled?.selector?.name?.lowercase() }.toSet()
         val enabledPatchesByIndex =
             selection.mapNotNull { it.enabled?.selector?.index }.toSet()
 
         val disabledPatches =
-            selection.mapNotNull { it.disable?.selector?.name }.toSet()
+            selection.mapNotNull { it.disable?.selector?.name?.lowercase() }.toSet()
         val disabledPatchesByIndex =
             selection.mapNotNull { it.disable?.selector?.index }.toSet()
 
         this@filterPatchSelection.withIndex().forEach patchLoop@{ (i, patch) ->
             val patchName = patch.name!!
 
-            val isManuallyDisabled = patchName in disabledPatches || i in disabledPatchesByIndex
-            if (isManuallyDisabled) return@patchLoop logger.info("\"$patchName\" disabled manually")
-
-            // Make sure the patch is compatible with the supplied APK files package name and version.
+            // Check package compatibility first to avoid duplicate logs for multi-app patches.
             patch.compatiblePackages?.let { packages ->
                 packages.singleOrNull { (name, _) -> name == packageName }?.let { (_, versions) ->
                     if (versions?.isEmpty() == true) {
@@ -587,8 +587,11 @@ internal object PatchCommand : Callable<Int> {
                 return@let
             } ?: logger.fine("\"$patchName\" has no package constraints")
 
+            val isManuallyDisabled = patchName.lowercase() in disabledPatches || i in disabledPatchesByIndex
+            if (isManuallyDisabled) return@patchLoop logger.info("\"$patchName\" disabled manually")
+
             val isEnabled = !exclusive && patch.use
-            val isManuallyEnabled = patchName in enabledPatchesByName || i in enabledPatchesByIndex
+            val isManuallyEnabled = patchName.lowercase() in enabledPatchesByName || i in enabledPatchesByIndex
 
             if (!(isEnabled || isManuallyEnabled)) {
                 return@patchLoop logger.info("\"$patchName\" disabled")

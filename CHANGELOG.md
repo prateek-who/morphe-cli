@@ -1,3 +1,24 @@
+# [1.4.0-dev.5](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.4...v1.4.0-dev.5) (2026-02-14)
+
+
+### Bug Fixes
+
+* Do not log patch name more than once if disabled ([#49](https://github.com/MorpheApp/morphe-cli/issues/49)) ([b980bb8](https://github.com/MorpheApp/morphe-cli/commit/b980bb8e0b3bf8eb4c7af1fe289ff1b63c437fa3))
+
+# [1.4.0-dev.4](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.3...v1.4.0-dev.4) (2026-02-14)
+
+
+### Bug Fixes
+
+* Allow enabling/disabling patches using case insensitive patch names ([#48](https://github.com/MorpheApp/morphe-cli/issues/48)) ([03a280a](https://github.com/MorpheApp/morphe-cli/commit/03a280abea6c9187eec22548707eb889b0252c3f))
+
+# [1.4.0-dev.3](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.2...v1.4.0-dev.3) (2026-02-12)
+
+
+### Features
+
+* Add `--continue-on-error` argument, return non zero exit code if patching fails ([#47](https://github.com/MorpheApp/morphe-cli/issues/47)) ([255646b](https://github.com/MorpheApp/morphe-cli/commit/255646b250237087ab7d7f9733daa6751b7e4016))
+
 # [1.4.0-dev.2](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.1...v1.4.0-dev.2) (2026-02-10)
 
 
