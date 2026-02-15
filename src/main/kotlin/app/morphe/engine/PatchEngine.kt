@@ -280,13 +280,7 @@ object PatchEngine {
         patches.forEach patchLoop@{ patch ->
             val patchName = patch.name ?: return@patchLoop
 
-            // Check if explicitly disabled
-            if (patchName in disabledPatches) {
-                onProgress("Skipping disabled: $patchName")
-                return@patchLoop
-            }
-
-            // Check package compatibility
+            // Check package compatibility first to avoid duplicate logs for multi-app patches.
             patch.compatiblePackages?.let { packages ->
                 val matchingPkg = packages.singleOrNull { (name, _) -> name == packageName }
                 if (matchingPkg == null) {
@@ -305,6 +299,12 @@ object PatchEngine {
                     onProgress("Skipping \"$patchName\": incompatible with $packageName $packageVersion")
                     return@patchLoop
                 }
+            }
+
+            // Check if explicitly disabled
+            if (patchName in disabledPatches) {
+                onProgress("Skipping disabled: $patchName")
+                return@patchLoop
             }
 
             val isManuallyEnabled = patchName in enabledPatches

@@ -518,7 +518,7 @@ private fun VersionWarningDialog(
 private fun BrandingSection(isCompact: Boolean = false) {
     val themeState = LocalThemeState.current
     val isDark = when (themeState.current) {
-        ThemePreference.DARK -> true
+        ThemePreference.DARK, ThemePreference.AMOLED -> true
         ThemePreference.LIGHT -> false
         ThemePreference.SYSTEM -> isSystemInDarkTheme()
     }

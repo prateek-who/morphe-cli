@@ -142,7 +142,7 @@ fun QuickPatchContent(viewModel: QuickPatchViewModel) {
                 Spacer(modifier = Modifier.height(8.dp))
                 val themeState = LocalThemeState.current
                 val isDark = when (themeState.current) {
-                    ThemePreference.DARK -> true
+                    ThemePreference.DARK, ThemePreference.AMOLED -> true
                     ThemePreference.LIGHT -> false
                     ThemePreference.SYSTEM -> isSystemInDarkTheme()
                 }

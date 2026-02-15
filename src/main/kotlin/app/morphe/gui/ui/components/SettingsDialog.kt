@@ -316,6 +316,7 @@ private fun ThemePreference.toDisplayName(): String {
     return when (this) {
         ThemePreference.LIGHT -> "Light"
         ThemePreference.DARK -> "Dark"
+        ThemePreference.AMOLED -> "AMOLED"
         ThemePreference.SYSTEM -> "System"
     }
 }

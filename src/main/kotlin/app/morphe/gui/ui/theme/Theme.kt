@@ -36,6 +36,23 @@ private val MorpheDarkColorScheme = darkColorScheme(
     onError = Color.Black
 )
 
+private val MorpheAmoledColorScheme = darkColorScheme(
+    primary = MorpheColors.Blue,
+    secondary = MorpheColors.Teal,
+    tertiary = MorpheColors.Cyan,
+    background = Color.Black,
+    surface = Color(0xFF0A0A0A),
+    surfaceVariant = Color(0xFF1A1A1A),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onTertiary = Color.Black,
+    onBackground = MorpheColors.TextLight,
+    onSurface = MorpheColors.TextLight,
+    onSurfaceVariant = Color(0xFFB0B0B0),
+    error = Color(0xFFCF6679),
+    onError = Color.Black
+)
+
 private val MorpheLightColorScheme = lightColorScheme(
     primary = MorpheColors.Blue,
     secondary = MorpheColors.Teal,
@@ -56,6 +73,7 @@ private val MorpheLightColorScheme = lightColorScheme(
 enum class ThemePreference {
     LIGHT,
     DARK,
+    AMOLED,
     SYSTEM
 }
 
@@ -66,6 +84,7 @@ fun MorpheTheme(
 ) {
     val colorScheme = when (themePreference) {
         ThemePreference.DARK -> MorpheDarkColorScheme
+        ThemePreference.AMOLED -> MorpheAmoledColorScheme
         ThemePreference.LIGHT -> MorpheLightColorScheme
         ThemePreference.SYSTEM -> {
             if (isSystemInDarkTheme()) MorpheDarkColorScheme else MorpheLightColorScheme
