@@ -1,3 +1,10 @@
+# [1.4.0-dev.6](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.5...v1.4.0-dev.6) (2026-02-19)
+
+
+### Features
+
+* Add `--options-file` json patch/option configuration ([#53](https://github.com/MorpheApp/morphe-cli/issues/53)) ([44943da](https://github.com/MorpheApp/morphe-cli/commit/44943da5f40f8ec37364d4f67b9d2e82d2b5e98f))
+
 # [1.4.0-dev.5](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.4...v1.4.0-dev.5) (2026-02-14)
 
 

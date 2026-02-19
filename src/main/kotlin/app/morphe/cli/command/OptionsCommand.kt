@@ -1,6 +1,9 @@
 package app.morphe.cli.command
 
-import app.morphe.cli.command.model.toPatchOptionsFile
+import app.morphe.cli.command.model.PatchBundle
+import app.morphe.cli.command.model.findMatchingBundle
+import app.morphe.cli.command.model.mergeWithBundle
+import app.morphe.cli.command.model.withUpdatedBundle
 import app.morphe.patcher.patch.loadPatchesFromJar
 import kotlinx.serialization.json.Json
 import picocli.CommandLine
@@ -67,13 +70,41 @@ internal object OptionsCommand : Callable<Int> {
                 }.toSet()
             } ?: patches
 
-            val patchOptionsFile = filtered.toPatchOptionsFile()
-            val jsonString = json.encodeToString(patchOptionsFile)
+            // Read existing bundles list if the file already exists
+            val existingBundles: List<PatchBundle>? = if (outputFile.exists()) {
+                try {
+                    Json.decodeFromString<List<PatchBundle>>(outputFile.readText())
+                } catch (e: Exception) {
+                    logger.warning("Could not parse existing file, creating fresh: ${e.message}")
+                    null
+                }
+            } else null
+
+            // Find the bundle matching the current .mpp file(s), merge with it (or create fresh)
+            val existingBundle = existingBundles?.findMatchingBundle(patchesFiles)
+            val updatedBundle = filtered.mergeWithBundle(
+                existing = existingBundle,
+                sourceFiles = patchesFiles,
+            )
+
+            // Replace the matching entry in the list (or start a new list)
+            val updatedBundles = existingBundles?.withUpdatedBundle(updatedBundle)
+                ?: listOf(updatedBundle)
 
             outputFile.absoluteFile.parentFile?.mkdirs()
-            outputFile.writeText(jsonString)
+            outputFile.writeText(json.encodeToString(updatedBundles))
 
-            logger.info("Exported ${patchOptionsFile.patches.size} patches to ${outputFile.path}")
+            if (existingBundle != null) {
+                val existingNames = existingBundle.patches.keys.map { it.lowercase() }.toSet()
+                val newNames = updatedBundle.patches.keys.map { it.lowercase() }.toSet()
+                val added = newNames - existingNames
+                val removed = existingNames - newNames
+                val kept = newNames.intersect(existingNames)
+                logger.info("Updated bundle in options file at ${outputFile.path}")
+                logger.info("  ${kept.size} patches preserved, ${added.size} added, ${removed.size} removed")
+            } else {
+                logger.info("Created new bundle in options file at ${outputFile.path} with ${updatedBundle.patches.size} patches")
+            }
 
             EXIT_CODE_SUCCESS
         } catch (e: Exception) {
