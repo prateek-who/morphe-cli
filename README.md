@@ -32,7 +32,6 @@ All modifications made by Morphe can be found in the Git history.
 3. [Required] Patches mpp file (patches-*.mpp). You can download the latest stable patch file from [here](https://github.com/MorpheApp/morphe-patches/releases/latest).
 4. [Required] Desired app file (app.apk). You can download your apk from [APK Mirror](https://www.apkmirror.com/).
 5. [Optional] [Android Debug Bridge (ADB)](https://developer.android.com/studio/command-line/adb) Only if you want to install the patched APK file on your device
-6. [Optional] x86 or x86-64 (For [other architectures](https://github.com/Morphe/Morphe-manager/tree/main/android/app/src/main/jniLibs) use the `--custom-aapt2-binary` option)
 
 
 ## Getting Started
