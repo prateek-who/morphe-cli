@@ -15,7 +15,7 @@
 <br>
 </div>
 
-# Morphe Desktop
+<h1 align="center">Morphe Desktop</h1>
 
 
 ## About
