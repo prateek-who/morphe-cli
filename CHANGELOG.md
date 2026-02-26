@@ -1,3 +1,10 @@
+# [1.5.0-dev.5](https://github.com/MorpheApp/morphe-cli/compare/v1.5.0-dev.4...v1.5.0-dev.5) (2026-02-26)
+
+
+### Features
+
+* Add `--out` and `--patches` arguments to `list-patches` command ([#60](https://github.com/MorpheApp/morphe-cli/issues/60)) ([ef9fc48](https://github.com/MorpheApp/morphe-cli/commit/ef9fc482fcc6de2e51741b23ce12729991d6b36d))
+
 # [1.5.0-dev.4](https://github.com/MorpheApp/morphe-cli/compare/v1.5.0-dev.3...v1.5.0-dev.4) (2026-02-26)
 
 
