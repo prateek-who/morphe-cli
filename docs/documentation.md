@@ -1,4 +1,4 @@
-<h1 >Morphe Desktop Documentation</h1>
+<h1 align="center">Morphe Desktop Documentation</h1>
 
 This is the complete documentation for Morphe Desktop. It covers all the CLI sub-commands, flags, GUI usage
 and common workflows. If you're brand new, it is recommended to start with the [first-run](../README.md#first-run) section
@@ -6,20 +6,27 @@ first, then come back here.
 
 Now that you have gone through with your first run, lets dig deeper to understand how the magic happens and how you can make it even better!
 
-## Table of contents
+<details open>
+<summary><h2 id="table-of-contents">Table of contents</h2></summary>
 
 - [Prerequisites](#prerequisites)
 - [CLI](#cli)
   - [General flags](#general-flags)
-  - [Subcommand 1: `patch`](#subcommand-1-patch)
-  - [Subcommand 2: `list-patches`](#subcommand-2-list-patches)
-  - [Subcommand 3: `list-versions`](#subcommand-3-list-versions)
-  - [Subcommand 4: `options-create`](#subcommand-4-options-create)
-  - [Subcommand 5: `utility`](#subcommand-5-utility)
+  - [patch](#subcommand-1-patch)
+  - [list-patches](#subcommand-2-list-patches)
+  - [list-versions](#subcommand-3-list-versions)
+  - [options-create](#subcommand-4-options-create)
+  - [utility](#subcommand-5-utility)
+    - [install](#utility-install)
+    - [uninstall](#utility-uninstall)
+  - [Value Types Reference](#value-types-reference)
 - [GUI](#gui)
 
+</details>
 
-## Prerequisites
+
+<details open>
+<summary><h2 id="prerequisites">Prerequisites</h2></summary>
 
 1. [Required] Java Runtime Environment 11 or above ([Azul Zulu JRE](https://www.azul.com/downloads/?version=java-11-lts&package=jre#zulu) or [OpenJDK](https://jdk.java.net/archive/)).
 2. [Required] Morphe Desktop jar file (morphe-desktop-*-all.jar). You can download the most recent stable version of Morphe Desktop from [here](https://github.com/MorpheApp/morphe-cli/releases/latest).
@@ -27,8 +34,11 @@ Now that you have gone through with your first run, lets dig deeper to understan
 4. [Required] Desired app file (app.apk). You can download your apk from [APK Mirror](https://www.apkmirror.com/).
 5. [Optional] [Android Debug Bridge (ADB)](https://developer.android.com/studio/command-line/adb) Only if you want to install the patched APK file on your device
 
+</details>
 
-## CLI
+
+<details open>
+<summary><h2 id="cli">CLI</h2></summary>
 
 The CLI is small yet extremely powerful. Often, new features will first appear in the CLI and then will be slowly implemented onto the GUI. Hence, getting a hang of the CLI is very advantageous.
 
@@ -52,7 +62,8 @@ Shows the current version of the morphe-desktop.jar
 java -jar morphe-desktop-*-all.jar --version
 ```
 
-### Subcommand 1: `patch`
+<details open>
+<summary><h3 id="subcommand-1-patch">Subcommand 1: `patch`</h3></summary>
 
 This is the most fundamental sub-command. Add the `patch` keyword to run this sub-command.
 ```
@@ -436,8 +447,12 @@ Path to save a JSON file containing the patching result, including which patches
 java -jar morphe-desktop-*-all.jar patch -p patches.mpp -r result.json your_app.apk
 ```
 
+---
+</details>
 
-### Subcommand 2: `list-patches`
+
+<details open>
+<summary><h3 id="subcommand-2-list-patches">Subcommand 2: `list-patches`</h3></summary>
 
 Lists all available patches from the supplied MPP files. Useful for finding patch names, indices, compatible packages, and options before patching.
 ```
@@ -559,8 +574,11 @@ java -jar morphe-desktop-*-all.jar list-patches --patches patches.mpp --filter-p
 
 
 ---
+</details>
 
-### Subcommand 3: `list-versions`
+<details open>
+<summary><h3 id="subcommand-3-list-versions">Subcommand 3: `list-versions`</h3></summary>
+
 
 Lists the most common compatible app versions for the patches in the supplied MPP files. Useful for knowing which APK version to download before patching.
 ```
@@ -608,10 +626,12 @@ Include patches that are not enabled by default when calculating the most common
 java -jar morphe-desktop-*-all.jar list-versions --count-unused-patches patches.mpp
 ```
 
-
 ---
+</details>
 
-### Subcommand 4: `options-create`
+
+<details open>
+<summary><h3 id="subcommand-4-options-create">Subcommand 4: `options-create`</h3></summary>
 
 Creates or updates an options JSON file for controlling which patches are enabled/disabled and their option values. The generated file can be passed to the `patch` subcommand with `--options-file`.
 ```
@@ -663,9 +683,66 @@ java -jar morphe-desktop-*-all.jar options-create -p patches.mpp -o options.json
 ```
 
 
----
+#### Options JSON Workflow
 
-### Subcommand 5: `utility`
+The options JSON file lets you save your patch preferences and reuse them across multiple patching sessions. Here's the typical workflow:
+
+**Step 1: Generate the options file**
+
+Use `options-create` to generate a JSON file with all available patches and their default settings:
+```
+java -jar morphe-desktop-*-all.jar options-create -p patches.mpp -o options.json
+```
+
+**Step 2: Edit the file**
+
+Open `options.json` in any text editor. You can enable/disable patches and set option values. The file contains a list of patch bundles, each with patch entries that look like:
+```json
+{
+  "patchName": {
+    "enabled": true,
+    "options": {
+      "optionKey": "optionValue"
+    }
+  }
+}
+```
+
+Set `"enabled": false` to disable a patch, or change option values as needed.
+
+**Step 3: Patch using the options file**
+
+Pass your customized options file to the `patch` command:
+```
+java -jar morphe-desktop-*-all.jar patch -p patches.mpp --options-file options.json your_app.apk
+```
+
+**Step 4: Keep the file in sync (optional)**
+
+When you update your .mpp file to a newer version, patches may be added or removed. You have two ways to sync:
+
+- Re-run `options-create` — this merges new patches in while preserving your existing settings:
+  ```
+  java -jar morphe-desktop-*-all.jar options-create -p patches.mpp -o options.json
+  ```
+
+- Use `--options-update` during patching — this auto-updates the file after patching:
+  ```
+  java -jar morphe-desktop-*-all.jar patch -p patches.mpp --options-file options.json --options-update your_app.apk
+  ```
+
+> [!NOTE]
+> CLI flags (`-e`, `-d`, `--ei`, `--di`, `-O`) always take precedence over the options file. If you enable a patch via CLI that the options file disables, the CLI wins. Morphe will log when this happens.
+
+> [!TIP]
+> You can also skip `options-create` entirely. If you pass `--options-file` with a path that doesn't exist yet, Morphe will auto-generate the file with defaults for you.
+
+---
+</details>
+
+
+<details open>
+<summary><h3 id="subcommand-5-utility">Subcommand 5: `utility`</h3></summary>
 
 Parent command for utility operations like manually installing or uninstalling apps via ADB. Has two sub-subcommands: `install` and `uninstall`.
 
@@ -716,8 +793,8 @@ One or more ADB device serials to install to. If not provided, installs to the f
 java -jar morphe-desktop-*-all.jar utility install -a patched_app.apk SERIAL1 SERIAL2
 ```
 
-
 ---
+
 
 #### `utility uninstall`
 
@@ -765,9 +842,58 @@ One or more ADB device serials to uninstall from. If not provided, uninstalls fr
 java -jar morphe-desktop-*-all.jar utility uninstall -p com.google.android.youtube SERIAL1 SERIAL2
 ```
 
-
 ---
+</details>
 
-## GUI
+
+### Value Types Reference
+
+When setting patch options with `-O` or in an options JSON file, values are typed. Using the wrong type can cause a patch to fail. Here are the supported types and how to format them:
+
+| Type                  | Example                | Notes                              |
+|-----------------------|------------------------|------------------------------------|
+| String                | `string`               | Plain text                         |
+| Boolean               | `true`, `false`        |                                    |
+| Integer               | `123`                  | Whole numbers                      |
+| Double                | `1.0`                  | Decimal numbers                    |
+| Float                 | `1.0f`                 | Decimal with `f` suffix            |
+| Long                  | `1234567890`, `1L`     | Large numbers, optional `L` suffix |
+| List                  | `[item1,item2,item3]`  | Comma-separated, no spaces         |
+| List (mixed types)    | `[item1,123,true,1.0]` | Items are parsed by their type     |
+| Empty list (any type) | `[]`                   |                                    |
+| Typed empty list      | `int[]`                | Empty list of a specific type      |
+| Nested empty list     | `[int[]]`              |                                    |
+| List with null/empty  | `[null,'','"]`         |                                    |
+
+**Escaping:**
+
+Quotes and commas inside strings need to be escaped with `\`:
+- `\"` — escaped double quote
+- `\'` — escaped single quote
+- `\,` — escaped comma (treated as part of the string, not a list separator)
+
+List items are parsed recursively, so escaping works inside lists too:
+
+| What you want       | How to write it       |
+|---------------------|-----------------------|
+| Integer as a string | `[\'123\']`           |
+| Boolean as a string | `[\'true\']`          |
+| List as a string    | `[\'[item1,item2]\']` |
+| Null as a string    | `[\'null\']`          |
+
+**Example command:**
+```
+java -jar morphe-desktop-*-all.jar patch -p patches.mpp -e "Patch name" -OstringKey=\'1\' your_app.apk
+```
+
+This sets `stringKey` to the string `"1"` instead of the integer `1`.
+
+
+</details>
+
+<details open>
+<summary><h2 id="gui">GUI</h2></summary>
 
 Coming soon.
+
+</details>
