@@ -8,7 +8,10 @@ import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.patch.Patch
 import com.reandroid.apkeditor.merge.Merger
 import com.reandroid.apkeditor.merge.MergerOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -64,7 +67,9 @@ object PatchEngine {
      * Only throws for init errors (e.g. Patcher can't open the APK).
      */
     suspend fun patch(config: Config, onProgress: (String) -> Unit = {}): Result {
-        val tempDir = config.tempDir ?: Files.createTempDirectory("morphe-patching").toFile()
+        val tempDir = config.tempDir ?: withContext(Dispatchers.IO) {
+            Files.createTempDirectory("morphe-patching")
+        }.toFile()
         var mergedApkToCleanup: File? = null
         val stepResults = mutableListOf<StepResult>()
         val appliedPatches = mutableListOf<String>()
@@ -87,7 +92,7 @@ object PatchEngine {
                 config.inputApk
             }
 
-            coroutineContext.ensureActive()
+            currentCoroutineContext().ensureActive()
 
             // 2. Initialize patcher
             val patcherTempDir = File(tempDir, "patcher")
@@ -105,7 +110,7 @@ object PatchEngine {
                 val packageName = patcher.context.packageMetadata.packageName
                 val packageVersion = patcher.context.packageMetadata.versionCode
 
-                coroutineContext.ensureActive()
+                currentCoroutineContext().ensureActive()
 
                 // 3. Filter patches
                 onProgress("Filtering patches for $packageName v$packageVersion...")
@@ -120,7 +125,7 @@ object PatchEngine {
                     onProgress = onProgress,
                 )
 
-                coroutineContext.ensureActive()
+                currentCoroutineContext().ensureActive()
 
                 // 4. Set options
                 if (config.patchOptions.isNotEmpty()) {
@@ -132,7 +137,7 @@ object PatchEngine {
 
                 patcher += filteredPatches
 
-                coroutineContext.ensureActive()
+                currentCoroutineContext().ensureActive()
 
                 fun earlyResult() = Result(
                     success = false,
@@ -174,7 +179,7 @@ object PatchEngine {
                     return earlyResult()
                 }
 
-                coroutineContext.ensureActive()
+                currentCoroutineContext().ensureActive()
 
                 // 6. Rebuild APK
                 onProgress("Rebuilding APK...")
@@ -191,7 +196,7 @@ object PatchEngine {
 
                 val rebuiltApk = File(tempDir, "rebuilt.apk")
 
-                coroutineContext.ensureActive()
+                currentCoroutineContext().ensureActive()
 
                 // 7. Strip libs (if configured)
                 if (config.architecturesToKeep.isNotEmpty()) {
@@ -207,7 +212,7 @@ object PatchEngine {
                     }
                 }
 
-                coroutineContext.ensureActive()
+                currentCoroutineContext().ensureActive()
 
                 // 8. Sign APK (unless unsigned)
                 val tempOutput = File(tempDir, config.outputApk.name)
