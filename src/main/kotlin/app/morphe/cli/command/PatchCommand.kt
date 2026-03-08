@@ -955,8 +955,9 @@ internal object PatchCommand : Callable<Int> {
         }
 
         if (cachedFile != null){
+            val relativePath = cachedFile.relativeTo(temporaryFilesPath.parentFile).path
             // If the user mentioned file with that version already exists, return that file location.
-            logger.info("Using cached patch file at ${cachedFile.path}")
+            logger.info("Using cached patch file at $relativePath")
             return cachedFile
         }
         else{
@@ -989,7 +990,8 @@ internal object PatchCommand : Callable<Int> {
                 }
             }
 
-            logger.info("Patch saved at ${targetFile.path}. Use this file for your next runs!")
+            val relativePath = targetFile.relativeTo(temporaryFilesPath.parentFile).path
+            logger.info("Patches mpp saved to $relativePath")
 
             return targetFile
         }
