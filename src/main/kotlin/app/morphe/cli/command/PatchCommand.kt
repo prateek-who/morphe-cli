@@ -34,6 +34,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToStream
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -48,6 +49,7 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.util.concurrent.Callable
 import java.util.logging.Logger
+import kotlin.collections.plus
 
 @OptIn(ExperimentalSerializationApi::class)
 @VisibleForTesting
@@ -405,226 +407,79 @@ internal object PatchCommand : Callable<Int> {
                 val owner = urlParts[2]
                 val repo = urlParts[3]
 
+                // Resolve the version and asset from the GitHub API, then use the helper to cache/download.
+                val version: String
+                val asset: JsonElement?
+
                 if (url.contains("releases/tag/")){
                     // We have the release version in this branch.
-                    val version = urlParts[6] // version part of the url
-                    val versionNumber = version.removePrefix("v")
+                    version = urlParts[6] // version part of the url
 
-                    val repoCacheDir = File(getCliCacheDir(), "${owner}-${repo}")
+                    // First we hit the GitHub api for this specific release
+                    val response = java.net.URI(
+                        "https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}"
+                    ).toURL().openStream().bufferedReader().readText()
 
-                    val cachedFile = repoCacheDir.listFiles()?.find {
-                        it.name.endsWith(".mpp") && it.name.contains(versionNumber)
+                    // Then we find where the .mpp file is from the stream above
+                    val json = Json.parseToJsonElement(response).jsonObject
+                    val assetArray = json["assets"]?.jsonArray
+
+                    asset = assetArray?.find {
+                        it.jsonObject["name"]?.jsonPrimitive?.content?.endsWith(".mpp") == true
                     }
 
-                    if (cachedFile != null){
-                        // If the user mentioned file with that version already exists, return that file location.
-                        // No need to check the prerelease flag because the user has already specified the version.
-                        logger.info("Using cached patch file at ${cachedFile.path}")
-                        patchesFiles = patchesFiles - urlEntry + cachedFile
+                } else if (!prerelease) {
+                    // Here in this "only repo mentioned" branch, get the latest stable version.
+                    val response = java.net.URI(
+                        "https://api.github.com/repos/${owner}/${repo}/releases/latest"
+                    ).toURL().openStream().bufferedReader().readText()
+
+                    // Then we find where the .mpp file is from the stream above
+                    val json = Json.parseToJsonElement(response).jsonObject
+                    val assetArray = json["assets"]?.jsonArray
+
+                    asset = assetArray?.find {
+                        it.jsonObject["name"]?.jsonPrimitive?.content?.endsWith(".mpp") == true
                     }
-                    else{
-                        // If it doesn't exist or some other version is present, then we come here.
-                        // Either way we download our version and replace whatever else is present.
-                        logger.info("Downloading patches from ${owner}/${repo} ${versionNumber}....")
-                        repoCacheDir.listFiles()?.filter {
-                            it.name.endsWith(".mpp")
-                        }?.forEach { it.delete() }
-                        repoCacheDir.mkdirs()
 
-                        // Now we get the .mpp file from GitHub here
-                        // First we hit the GitHub api
-                        val response = java.net.URI(
-                            "https://api.github.com/repos/${owner}/${repo}/releases/tags/${version}"
-                        ).toURL().openStream().bufferedReader().readText()
+                    version = json["tag_name"]?.jsonPrimitive?.content
+                        ?: throw CommandLine.ParameterException(
+                            spec.commandLine(),
+                            "Could not determine version from ${owner}/${repo}"
+                        )
 
-                        // Then we find where the .mpp file is from the stream above
-                        val json = Json.parseToJsonElement(response).jsonObject
-                        val assetArray = json["assets"]?.jsonArray
+                } else {
+                    // Get latest dev version here.
+                    // Get latest dev version from GitHub immediately to check our local file.
+                    val response = java.net.URI(
+                        "https://api.github.com/repos/${owner}/${repo}/releases"
+                    ).toURL().openStream().bufferedReader().readText()
 
-                        val asset = assetArray?.find {
-                            it.jsonObject["name"]?.jsonPrimitive?.content?.endsWith(".mpp") == true
-                        }
-
-                        // Get the .mpp file ready here
-                        val downloadUrl = asset?.jsonObject["browser_download_url"]?.jsonPrimitive?.content
-
-                        // Also get the file name ready here
-                        val assetName = asset?.jsonObject["name"]?.jsonPrimitive?.content
-
-                        if (downloadUrl == null || assetName == null){
-                            throw CommandLine.ParameterException(
-                                spec.commandLine(),
-                                "No .mpp file found in release $version"
-                                )
-                        }
-
-                        // We finally download and set everything here.
-                        val targetFile = File(repoCacheDir, assetName)
-                        java.net.URI(downloadUrl).toURL().openStream().use { input ->
-                            targetFile.outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-
-                        logger.info("Patch saved at ${targetFile.path}. Use this file for your next runs!")
-                        patchesFiles = patchesFiles - urlEntry + targetFile
-
+                    val releases = Json.parseToJsonElement(response).jsonArray
+                    val release = releases.firstOrNull {
+                        it.jsonObject["prerelease"]?.jsonPrimitive?.content == "true"
                     }
-                }else{
-                    // Here in this "only repo mentioned" branch check my version with the online version:
-                    // If a file is present, and it is the same version, just return that file.
-                    // If a file is present, and they are not same, then replace my version with the latest stable/ prerelease version depending on the --prerelease flag.
-                    // If no file is present, then download the latest stable/ prelease version depending on the --prerelease flag.
+                        ?: throw CommandLine.ParameterException(
+                            spec.commandLine(),
+                            "Could not get dev release from ${owner}/${repo}"
+                        )
 
-                    if (!prerelease) {
-                        // Get latest stable version here.
-                        // Get latest stable version from GitHub immediately to check our local file.
-                        val response = java.net.URI(
-                            "https://api.github.com/repos/${owner}/${repo}/releases/latest"
-                        ).toURL().openStream().bufferedReader().readText()
+                    val assetArray = release.jsonObject["assets"]?.jsonArray
 
-                        // Then we find where the .mpp file is from the stream above
-                        val json = Json.parseToJsonElement(response).jsonObject
-                        val assetArray = json["assets"]?.jsonArray
-
-                        val asset = assetArray?.find {
-                            it.jsonObject["name"]?.jsonPrimitive?.content?.endsWith(".mpp") == true
-                        }
-
-                        val version = json["tag_name"]?.jsonPrimitive?.content
-                            ?: throw CommandLine.ParameterException(
-                                spec.commandLine(),
-                                "Could not determine version from ${owner}/${repo}"
-                            )
-
-                        val versionNumber = version.removePrefix("v")
-
-                        val repoCacheDir = File(getCliCacheDir(), "${owner}-${repo}")
-
-                        val cachedFile = repoCacheDir.listFiles()?.find {
-                            it.name.endsWith(".mpp") && it.name.contains(versionNumber)
-                        }
-
-                        if (cachedFile != null){
-                            // If the user mentioned file with that version already exists, return that file location.
-                            // No need to check the prerelease flag because the user has already specified the version.
-                            logger.info("Using cached patch file at ${cachedFile.path}")
-                            patchesFiles = patchesFiles - urlEntry + cachedFile
-                        }
-                        else{
-                            // If it doesn't exist or some other version is present, then we come here.
-                            // Either way we download our version and replace whatever else is present.
-                            logger.info("Downloading patches from ${owner}/${repo} ${versionNumber}....")
-                            repoCacheDir.listFiles()?.filter {
-                                it.name.endsWith(".mpp")
-                            }?.forEach { it.delete() }
-                            repoCacheDir.mkdirs()
-
-                            // Get the .mpp file ready here
-                            val downloadUrl = asset?.jsonObject["browser_download_url"]?.jsonPrimitive?.content
-
-                            // Also get the file name ready here
-                            val assetName = asset?.jsonObject["name"]?.jsonPrimitive?.content
-
-                            if (downloadUrl == null || assetName == null){
-                                throw CommandLine.ParameterException(
-                                    spec.commandLine(),
-                                    "No .mpp file found in release $version"
-                                )
-                            }
-
-                            // We finally download and set everything here.
-                            val targetFile = File(repoCacheDir, assetName)
-                            java.net.URI(downloadUrl).toURL().openStream().use { input ->
-                                targetFile.outputStream().use { output ->
-                                    input.copyTo(output)
-                                }
-                            }
-
-                            logger.info("Patch saved at ${targetFile.path}. Use this file for your next runs!")
-                            patchesFiles = patchesFiles - urlEntry + targetFile
-
-                        }
-
+                    asset = assetArray?.find {
+                        it.jsonObject["name"]?.jsonPrimitive?.content?.endsWith(".mpp") == true
                     }
-                    else {
-                        // Get latest dev version here.
-                        // Get latest dev version from GitHub immediately to check our local file.
-                        val response = java.net.URI(
-                            "https://api.github.com/repos/${owner}/${repo}/releases"
-                        ).toURL().openStream().bufferedReader().readText()
 
-                        val releases = Json.parseToJsonElement(response).jsonArray
-                        val release = releases.firstOrNull {
-                            it.jsonObject["prerelease"]?.jsonPrimitive?.content == "true"
-                        }
-                            ?: throw CommandLine.ParameterException(
-                                spec.commandLine(),
-                                "Could not get dev release from ${owner}/${repo}"
-                            )
-
-                        val assetArray = release.jsonObject["assets"]?.jsonArray
-
-                        val asset = assetArray?.find {
-                            it.jsonObject["name"]?.jsonPrimitive?.content?.endsWith(".mpp") == true
-                        }
-
-                        val version = release.jsonObject["tag_name"]?.jsonPrimitive?.content
-                            ?: throw CommandLine.ParameterException(
-                                spec.commandLine(),
-                                "Could not determine version from ${owner}/${repo}"
-                            )
-
-                        val versionNumber = version.removePrefix("v")
-
-                        val repoCacheDir = File(getCliCacheDir(), "${owner}-${repo}")
-
-                        val cachedFile = repoCacheDir.listFiles()?.find {
-                            it.name.endsWith(".mpp") && it.name.contains(versionNumber)
-                        }
-
-                        if (cachedFile != null){
-                            // If the user mentioned file with that version already exists, return that file location.
-                            // No need to check the prerelease flag because the user has already specified the version.
-                            logger.info("Using cached patch file at ${cachedFile.path}")
-                            patchesFiles = patchesFiles - urlEntry + cachedFile
-                        }
-                        else{
-                            // If it doesn't exist or some other version is present, then we come here.
-                            // Either way we download our version and replace whatever else is present.
-                            logger.info("Downloading patches from ${owner}/${repo} ${version}....")
-                            repoCacheDir.listFiles()?.filter {
-                                it.name.endsWith(".mpp")
-                            }?.forEach { it.delete() }
-                            repoCacheDir.mkdirs()
-
-                            // Get the .mpp file ready here
-                            val downloadUrl = asset?.jsonObject["browser_download_url"]?.jsonPrimitive?.content
-
-                            // Also get the file name ready here
-                            val assetName = asset?.jsonObject["name"]?.jsonPrimitive?.content
-
-                            if (downloadUrl == null || assetName == null){
-                                throw CommandLine.ParameterException(
-                                    spec.commandLine(),
-                                    "No .mpp file found in release $version"
-                                )
-                            }
-
-                            // We finally download and set everything here.
-                            val targetFile = File(repoCacheDir, assetName)
-                            java.net.URI(downloadUrl).toURL().openStream().use { input ->
-                                targetFile.outputStream().use { output ->
-                                    input.copyTo(output)
-                                }
-                            }
-
-                            logger.info("Patch saved at ${targetFile.path}. Use this file for your next runs!")
-                            patchesFiles = patchesFiles - urlEntry + targetFile
-
-                        }
-                    }
+                    version = release.jsonObject["tag_name"]?.jsonPrimitive?.content
+                        ?: throw CommandLine.ParameterException(
+                            spec.commandLine(),
+                            "Could not determine version from ${owner}/${repo}"
+                        )
                 }
+
+                // Use the helper to check cache or download the .mpp file
+                val resolvedFile = fetchRemotePatchFile(owner, repo, version, asset, temporaryFilesPath)
+                patchesFiles = patchesFiles - urlEntry + resolvedFile
             } catch (e: Exception) {
                 throw CommandLine.ParameterException(
                     spec.commandLine(),
@@ -1081,19 +936,64 @@ internal object PatchCommand : Callable<Int> {
             }
         logger.info(result)
     }
+
+    // This is the helper function that can be called to do the patch files downlaoding.
+    // The caller resolves the version and asset from the GitHub API before calling this.
+    private fun fetchRemotePatchFile(
+        owner: String,
+        repo: String,
+        version: String,
+        asset: JsonElement?,
+        temporaryFilesPath: File
+    ): File {
+        val versionNumber = version.removePrefix("v")
+
+        val repoCacheDir = temporaryFilesPath.resolve("download").resolve("${owner}-${repo}")
+
+        val cachedFile = repoCacheDir.listFiles()?.find {
+            it.name.endsWith(".mpp") && it.name.contains(versionNumber)
+        }
+
+        if (cachedFile != null){
+            // If the user mentioned file with that version already exists, return that file location.
+            logger.info("Using cached patch file at ${cachedFile.path}")
+            return cachedFile
+        }
+        else{
+            // If it doesn't exist or some other version is present, then we come here.
+            // Either way we download our version and replace whatever else is present.
+            repoCacheDir.listFiles()?.filter {
+                it.name.endsWith(".mpp")
+            }?.forEach { it.delete() }
+            repoCacheDir.mkdirs()
+
+            // Get the .mpp file ready here
+            val downloadUrl = asset?.jsonObject?.get("browser_download_url")?.jsonPrimitive?.content
+
+            // Also get the file name ready here
+            val assetName = asset?.jsonObject?.get("name")?.jsonPrimitive?.content
+
+            if (downloadUrl == null || assetName == null){
+                throw CommandLine.ParameterException(
+                    spec.commandLine(),
+                    "No .mpp file found in release $version"
+                )
+            }
+
+            // We finally download and set everything here.
+            logger.info("Downloading patches from ${owner}/${repo} ${versionNumber}...")
+            val targetFile = File(repoCacheDir, assetName)
+            java.net.URI(downloadUrl).toURL().openStream().use { input ->
+                targetFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            logger.info("Patch saved at ${targetFile.path}. Use this file for your next runs!")
+
+            return targetFile
+        }
+    }
 }
 
 private class PatchFailedException(message: String, cause: Throwable) : Exception(message, cause)
-
-private fun getCliCacheDir(): File {
-    val userHome = System.getProperty("user.home")
-    val osName = System.getProperty("os.name").lowercase()
-    val base = when {
-        osName.contains("win") -> File(System.getenv("APPDATA") ?:
-        "$userHome/AppData/Roaming", "morphe-cli")
-        osName.contains("mac") ->
-            File("$userHome/Library/Application Support", "morphe-cli")
-        else -> File("$userHome/.config", "morphe-cli")
-    }
-    return File(base, "patches").also { it.mkdirs() }
-}
