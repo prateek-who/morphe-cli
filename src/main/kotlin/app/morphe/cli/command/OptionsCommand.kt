@@ -32,7 +32,7 @@ internal object OptionsCommand : Callable<Int> {
 
     @Option(
         names = ["-p", "--patches"],
-        description = ["One or more paths to MPP files."],
+        description = ["Path to a MPP file or a GitHub repo url such as https://github.com/MorpheApp/morphe-patches"],
         required = true,
     )
     @Suppress("unused")

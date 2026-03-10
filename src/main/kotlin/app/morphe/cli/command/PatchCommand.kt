@@ -245,7 +245,7 @@ internal object PatchCommand : Callable<Int> {
 
     @CommandLine.Option(
         names = ["-p", "--patches"],
-        description = ["One or more path to MPP files or GitHub repo urls such as https://github.com/MorpheApp/morphe-patches"],
+        description = ["Path to a MPP file or a GitHub repo url such as https://github.com/MorpheApp/morphe-patches"],
         required = true,
     )
     @Suppress("unused")
