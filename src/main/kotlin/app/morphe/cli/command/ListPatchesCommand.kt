@@ -37,17 +37,7 @@ internal object ListPatchesCommand : Runnable {
     )
     @Suppress("unused")
     private fun setPatchesFile(patchesFiles: Set<File>) {
-        patchesFiles.firstOrNull {
-            !it.exists() &&
-                    !it.toString().startsWith("http:/") &&
-                    !it.toString().startsWith("https:/")
-        }?.let {
-            throw CommandLine.ParameterException(
-                spec.commandLine(),
-                "${it.name} can't be found"
-            )
-        }
-        this.patchesFiles = patchesFiles
+        this.patchesFiles = checkFileExistsOrIsUrl(patchesFiles, spec)
     }
     private var patchesFiles = emptySet<File>()
 

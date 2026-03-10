@@ -6,9 +6,9 @@ import app.morphe.patcher.patch.loadPatchesFromJar
 import app.morphe.patcher.patch.mostCommonCompatibleVersions
 import picocli.CommandLine
 import picocli.CommandLine.Command
-import picocli.CommandLine.Option
 import picocli.CommandLine.Help.Visibility.ALWAYS
 import picocli.CommandLine.Model.CommandSpec
+import picocli.CommandLine.Option
 import picocli.CommandLine.Spec
 import java.io.File
 import java.util.logging.Logger
@@ -31,17 +31,7 @@ internal class ListCompatibleVersions : Runnable {
     )
     @Suppress("unused")
     private fun setPatchesFile(patchesFiles: Set<File>) {
-        patchesFiles.firstOrNull {
-            !it.exists() &&
-                    !it.toString().startsWith("http:/") &&
-                    !it.toString().startsWith("https:/")
-        }?.let {
-            throw CommandLine.ParameterException(
-                spec.commandLine(),
-                "${it.name} can't be found"
-            )
-        }
-        this.patchesFiles = patchesFiles
+        this.patchesFiles = checkFileExistsOrIsUrl(patchesFiles, spec)
     }
     private var patchesFiles = emptySet<File>()
 
