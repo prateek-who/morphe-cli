@@ -1,4 +1,9 @@
-package app.morphe.gui.util
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-cli
+ */
+
+package app.morphe.engine
 
 import java.io.File
 import java.util.logging.Logger
