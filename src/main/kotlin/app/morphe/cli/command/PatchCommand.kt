@@ -25,11 +25,11 @@ import app.morphe.patcher.apk.ApkUtils.applyTo
 import app.morphe.library.installation.installer.*
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherConfig
+import app.morphe.patcher.apk.ApkMerger
+import app.morphe.patcher.logging.toMorpheLogger
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.loadPatchesFromJar
 import app.morphe.patcher.patch.setOptions
-import com.reandroid.apkeditor.merge.Merger
-import com.reandroid.apkeditor.merge.MergerOptions
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -435,12 +435,11 @@ internal object PatchCommand : Callable<Int> {
                 val outputApk = outputFilePath.parentFile.resolve("${apk.nameWithoutExtension}-merged.apk")
 
                 // Use APKEditor's Merger directly (handles extraction and merging)
-                val mergerOptions = MergerOptions().apply {
-                    inputFile = apk  // Original APKM file
-                    outputFile = outputApk
-                    cleanMeta = true
-                }
-                Merger(mergerOptions).run()
+                ApkMerger(logger.toMorpheLogger()).merge(
+                    inputFile = apk,
+                    outputFile = outputApk,
+                    cleanMetaInf = true
+                )
 
                 mergedApkToCleanup = outputApk
                 outputApk

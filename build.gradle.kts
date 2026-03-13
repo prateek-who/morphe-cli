@@ -32,33 +32,13 @@ repositories {
     maven { url = uri("https://jitpack.io") }
 }
 
-val apkEditorLib by configurations.creating
-
-val strippedApkEditorLib by tasks.registering(org.gradle.jvm.tasks.Jar::class) {
-    archiveFileName.set("APKEditor-cli.jar")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    doFirst {
-        from(apkEditorLib.resolve().map { zipTree(it) })
-    }
-    exclude(
-        "org/xmlpull/**",
-        "antlr/**",
-        "org/antlr/**",
-        "com/beust/jcommander/**",
-        "javax/annotation/**",
-        "smali.properties",
-        "baksmali.properties"
-    )
-}
-
 dependencies {
     api(libs.morphe.patcher)
+    implementation(libs.arsclib)
     implementation(libs.morphe.library)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.picocli)
-    apkEditorLib(files("$rootDir/libs/APKEditor-1.4.7.jar"))
-    implementation(files(strippedApkEditorLib))
 
     testImplementation(libs.kotlin.test)
     testImplementation(libs.junit.params)
