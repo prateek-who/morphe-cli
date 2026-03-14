@@ -1,3 +1,10 @@
+# [1.6.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.5.1-dev.3...v1.6.0-dev.1) (2026-03-14)
+
+
+### Features
+
+* Add desktop GUI ([#42](https://github.com/MorpheApp/morphe-cli/issues/42)) ([cd627e6](https://github.com/MorpheApp/morphe-cli/commit/cd627e6a4320084403beacd414278b3b75f469da))
+
 ## [1.5.1-dev.3](https://github.com/MorpheApp/morphe-cli/compare/v1.5.1-dev.2...v1.5.1-dev.3) (2026-03-13)
 
 
