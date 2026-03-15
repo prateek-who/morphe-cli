@@ -1,3 +1,10 @@
+# [1.6.0-dev.2](https://github.com/MorpheApp/morphe-cli/compare/v1.6.0-dev.1...v1.6.0-dev.2) (2026-03-15)
+
+
+### Bug Fixes
+
+* Dispatch error when launching app ([#79](https://github.com/MorpheApp/morphe-cli/issues/79)) ([989e72a](https://github.com/MorpheApp/morphe-cli/commit/989e72a04c9ea1b512d556ff8db48b99a4817d98))
+
 # [1.6.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.5.1-dev.3...v1.6.0-dev.1) (2026-03-14)
 
 
