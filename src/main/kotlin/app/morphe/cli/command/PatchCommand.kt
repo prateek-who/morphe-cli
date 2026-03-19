@@ -35,7 +35,10 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToStream
 import org.jetbrains.annotations.VisibleForTesting
-import picocli.CommandLine
+import picocli.CommandLine.Command
+import picocli.CommandLine.Option
+import picocli.CommandLine.Parameters
+import picocli.CommandLine.ParameterException
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Help.Visibility.ALWAYS
 import picocli.CommandLine.Model.CommandSpec
@@ -48,7 +51,7 @@ import java.util.logging.Logger
 
 @OptIn(ExperimentalSerializationApi::class)
 @VisibleForTesting
-@CommandLine.Command(
+@Command(
     name = "patch",
     description = ["Patch an APK file."],
 )
@@ -74,14 +77,14 @@ internal object PatchCommand : Callable<Int> {
             internal lateinit var selector: EnableSelector
 
             internal class EnableSelector {
-                @CommandLine.Option(
+                @Option(
                     names = ["-e", "--enable"],
                     description = ["Name of the patch."],
                     required = true,
                 )
                 internal var name: String? = null
 
-                @CommandLine.Option(
+                @Option(
                     names = ["--ei"],
                     description = ["Index of the patch in the combined list of the supplied MPP files."],
                     required = true,
@@ -89,10 +92,10 @@ internal object PatchCommand : Callable<Int> {
                 internal var index: Int? = null
             }
 
-            @CommandLine.Option(
+            @Option(
                 names = ["-O", "--options"],
                 description = ["Option values keyed by option keys."],
-                mapFallbackValue = CommandLine.Option.NULL_VALUE,
+                mapFallbackValue = Option.NULL_VALUE,
                 converter = [OptionKeyConverter::class, OptionValueConverter::class],
             )
             internal var options = mutableMapOf<String, Any?>()
@@ -106,14 +109,14 @@ internal object PatchCommand : Callable<Int> {
             internal lateinit var selector: DisableSelector
 
             internal class DisableSelector {
-                @CommandLine.Option(
+                @Option(
                     names = ["-d", "--disable"],
                     description = ["Name of the patch."],
                     required = true,
                 )
                 internal var name: String? = null
 
-                @CommandLine.Option(
+                @Option(
                     names = ["--di"],
                     description = ["Index of the patch in the combined list of the supplied MPP files."],
                     required = true,
@@ -123,14 +126,14 @@ internal object PatchCommand : Callable<Int> {
         }
     }
 
-    @CommandLine.Option(
+    @Option(
         names = ["--exclusive"],
         description = ["Disable all patches except the ones enabled."],
         showDefaultValue = ALWAYS,
     )
     private var exclusive = false
 
-    @CommandLine.Option(
+    @Option(
         names = ["-f", "--force"],
         description = ["Don't check for compatibility with the supplied APK's version."],
         showDefaultValue = ALWAYS,
@@ -139,7 +142,7 @@ internal object PatchCommand : Callable<Int> {
 
     private var outputFilePath: File? = null
 
-    @CommandLine.Option(
+    @Option(
         names = ["-o", "--out"],
         description = ["Path to save the patched APK file to. Defaults to the same path as the supplied APK file."],
     )
@@ -150,7 +153,7 @@ internal object PatchCommand : Callable<Int> {
 
     private var patchingResultOutputFilePath: File? = null
 
-    @CommandLine.Option(
+    @Option(
         names = ["-r", "--result-file"],
         description = ["Path to save the patching result file to"],
     )
@@ -159,7 +162,7 @@ internal object PatchCommand : Callable<Int> {
         this.patchingResultOutputFilePath = outputFilePath?.absoluteFile
     }
 
-    @CommandLine.Option(
+    @Option(
         names = ["-i", "--install"],
         description = ["Serial of the ADB device to install to. If not specified, the first connected device will be used."],
         // Empty string to indicate that the first connected device should be used.
@@ -168,14 +171,14 @@ internal object PatchCommand : Callable<Int> {
     )
     private var deviceSerial: String? = null
 
-    @CommandLine.Option(
+    @Option(
         names = ["--mount"],
         description = ["Install the patched APK file by mounting."],
         showDefaultValue = ALWAYS,
     )
     private var mount: Boolean = false
 
-    @CommandLine.Option(
+    @Option(
         names = ["--keystore"],
         description = [
             "Path to the keystore file containing a private key and certificate pair to sign the patched APK file with. " +
@@ -184,33 +187,33 @@ internal object PatchCommand : Callable<Int> {
     )
     private var keyStoreFilePath: File? = null
 
-    @CommandLine.Option(
+    @Option(
         names = ["--keystore-password"],
         description = ["Password of the keystore. Empty password by default."],
     )
     private var keyStorePassword: String? = null // Empty password by default
 
-    @CommandLine.Option(
+    @Option(
         names = ["--keystore-entry-alias"],
         description = ["Alias of the private key and certificate pair keystore entry."],
         showDefaultValue = ALWAYS,
     )
     private var keyStoreEntryAlias = "Morphe Key"
 
-    @CommandLine.Option(
+    @Option(
         names = ["--keystore-entry-password"],
         description = ["Password of the keystore entry."],
     )
     private var keyStoreEntryPassword = "" // Empty password by default
 
-    @CommandLine.Option(
+    @Option(
         names = ["--signer"],
         description = ["The name of the signer to sign the patched APK file with."],
         showDefaultValue = ALWAYS,
     )
     private var signer = "Morphe"
 
-    @CommandLine.Option(
+    @Option(
         names = ["-t", "--temporary-files-path"],
         description = ["Path to store temporary files."],
     )
@@ -218,21 +221,21 @@ internal object PatchCommand : Callable<Int> {
 
     private var aaptBinaryPath: File? = null
 
-    @CommandLine.Option(
+    @Option(
         names = ["--purge"],
         description = ["Purge temporary files directory after patching."],
         showDefaultValue = ALWAYS,
     )
     private var purge: Boolean = false
 
-    @CommandLine.Parameters(
+    @Parameters(
         description = ["APK file to patch."],
         arity = "1",
     )
     @Suppress("unused")
     private fun setApk(apk: File) {
         if (!apk.exists()) {
-            throw CommandLine.ParameterException(
+            throw ParameterException(
                 spec.commandLine(),
                 "APK file ${apk.path} does not exist",
             )
@@ -242,7 +245,7 @@ internal object PatchCommand : Callable<Int> {
 
     private lateinit var apk: File
 
-    @CommandLine.Option(
+    @Option(
         names = ["-p", "--patches"],
         description = ["One or more path to MPP files."],
         required = true,
@@ -250,21 +253,21 @@ internal object PatchCommand : Callable<Int> {
     @Suppress("unused")
     private fun setPatchesFile(patchesFiles: Set<File>) {
         patchesFiles.firstOrNull { !it.exists() }?.let {
-            throw CommandLine.ParameterException(spec.commandLine(), "${it.name} can't be found")
+            throw ParameterException(spec.commandLine(), "${it.name} can't be found")
         }
         this.patchesFiles = patchesFiles
     }
 
     private var patchesFiles = emptySet<File>()
 
-    @CommandLine.Option(
+    @Option(
         names = ["--custom-aapt2-binary"],
         description = ["Path to a custom AAPT binary to compile resources with. Only valid when --use-arsclib is not specified."],
     )
     @Suppress("unused")
     private fun setAaptBinaryPath(aaptBinaryPath: File) {
         if (!aaptBinaryPath.exists()) {
-            throw CommandLine.ParameterException(
+            throw ParameterException(
                 spec.commandLine(),
                 "AAPT binary ${aaptBinaryPath.name} does not exist",
             )
@@ -272,34 +275,34 @@ internal object PatchCommand : Callable<Int> {
         this.aaptBinaryPath = aaptBinaryPath
     }
 
-    @CommandLine.Option(
+    @Option(
         names = ["--force-apktool"],
         description = ["Use apktool instead of arsclib to compile resources. Implied if --custom-aapt2-binary is specified."],
         showDefaultValue = ALWAYS,
     )
     private var forceApktool: Boolean = false
 
-    @CommandLine.Option(
+    @Option(
         names = ["--unsigned"],
         description = ["Disable signing of the final apk."],
     )
     private var unsigned: Boolean = false
 
-    @CommandLine.Option(
+    @Option(
         names = ["--striplibs"],
         description = ["Architectures to keep, comma-separated (e.g. arm64-v8a,x86). Strips all other native architectures."],
         split = ",",
     )
     private var striplibs: List<String> = emptyList()
 
-    @CommandLine.Option(
+    @Option(
         names = ["--continue-on-error"],
         description = ["Continue patching even if a patch fails. By default, patching stops on the first error."],
         showDefaultValue = ALWAYS,
     )
     private var continueOnError: Boolean = false
 
-    @CommandLine.Option(
+    @Option(
         names = ["--options-file"],
         description = ["Path to an options JSON file to read patch enable/disable and option values from."],
     )
@@ -310,15 +313,28 @@ internal object PatchCommand : Callable<Int> {
 
     private var optionsFilePath: File? = null
 
-    @CommandLine.Option(
+    @Option(
         names = ["--options-update"],
         description = ["Auto-update the options JSON file after patching to reflect the current patches. Without this flag, the file is left unchanged."],
         showDefaultValue = ALWAYS,
     )
     private var updateOptions: Boolean = false
 
+    @Option(
+        // Default logger gets set to FINE logging level. Any developer message with the FINE logging will get displayed.
+        names = ["--verbose"],
+        description = ["Enables more detailed logging"],
+    )
+    private var verbose: Boolean = false
+
     override fun call(): Int {
         // region Setup
+
+        if (verbose){
+            val rootLogger = java.util.logging.Logger.getLogger("")
+            rootLogger.level = java.util.logging.Level.FINE
+            rootLogger.handlers.forEach { it.level = java.util.logging.Level.FINE }
+        }
 
         val outputFilePath =
             outputFilePath ?: File("").absoluteFile.resolve(
