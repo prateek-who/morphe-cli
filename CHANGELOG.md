@@ -1,3 +1,10 @@
+# [1.6.0-dev.8](https://github.com/MorpheApp/morphe-cli/compare/v1.6.0-dev.7...v1.6.0-dev.8) (2026-03-21)
+
+
+### Bug Fixes
+
+* Use GitHub raw links for CLI update check ([#87](https://github.com/MorpheApp/morphe-cli/issues/87)) ([2aa6263](https://github.com/MorpheApp/morphe-cli/commit/2aa62637098fa52dcc79422116b91487aed5600a))
+
 # [1.6.0-dev.7](https://github.com/MorpheApp/morphe-cli/compare/v1.6.0-dev.6...v1.6.0-dev.7) (2026-03-20)
 
 
