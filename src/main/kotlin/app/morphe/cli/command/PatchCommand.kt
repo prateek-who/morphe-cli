@@ -431,9 +431,11 @@ internal object PatchCommand : Callable<Int> {
 
             val patcherTemporaryFilesPath = temporaryFilesPath.resolve("patcher")
 
-            // Checking if the file is in apkm format (like reddit)
-            val inputApk = if (apk.extension.equals("apkm", ignoreCase = true)) {
-                logger.info("Merging APKM bundle")
+            // We need to check for apkm (like reddit), xapk and apks formats here
+
+            val inputApk = if (apk.extension.lowercase() in  setOf("apkm", "xapk", "apks")) {
+
+                logger.info("Merging split APK bundle")
 
                 // Save merged APK to output directory (will be cleaned up after patching)
                 val outputApk = outputFilePath.parentFile.resolve("${apk.nameWithoutExtension}-merged.apk")
@@ -752,7 +754,7 @@ internal object PatchCommand : Callable<Int> {
                 purge(temporaryFilesPath)
             }
 
-            // Clean up merged APK if we created one from APKM
+            // Clean up merged apk if we created one from apkm, xapk or apks
             mergedApkToCleanup?.let {
                 if (!it.delete()) {
                     logger.warning("Could not clean up merged APK: ${it.path}")
