@@ -1,3 +1,13 @@
+## [1.6.3](https://github.com/MorpheApp/morphe-cli/compare/v1.6.2...v1.6.3) (2026-03-28)
+
+
+### Bug Fixes
+
+* Handle patching XAPK files ([#93](https://github.com/MorpheApp/morphe-cli/issues/93)) ([5d18490](https://github.com/MorpheApp/morphe-cli/commit/5d18490305f10949bf5407bc7167549e3a1cc8f4))
+* Handle running CLI in headless environment ([#95](https://github.com/MorpheApp/morphe-cli/issues/95)) ([70f2952](https://github.com/MorpheApp/morphe-cli/commit/70f2952b09de57ad7c06bd92365025d38164ed26))
+* Update to latest Patcher ([fbc6c9e](https://github.com/MorpheApp/morphe-cli/commit/fbc6c9e2dbab2db9b46f442feeec1a2df565114e))
+* Update to Patcher 1.3.3 ([ca579fb](https://github.com/MorpheApp/morphe-cli/commit/ca579fbc8afa32b98a77475ae4db0792d1165a3d))
+
 ## [1.6.3-dev.4](https://github.com/MorpheApp/morphe-cli/compare/v1.6.3-dev.3...v1.6.3-dev.4) (2026-03-28)
 
 
