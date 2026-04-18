@@ -1,3 +1,10 @@
+# [1.8.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.7.0...v1.8.0-dev.1) (2026-04-18)
+
+
+### Features
+
+* Faster dex rebuilding + reduced memory requirements  ([#108](https://github.com/MorpheApp/morphe-cli/issues/108)) ([ed8918e](https://github.com/MorpheApp/morphe-cli/commit/ed8918eb8d26634f717e09b58aa174c1d1353a07))
+
 # [1.7.0](https://github.com/MorpheApp/morphe-cli/compare/v1.6.3...v1.7.0) (2026-04-16)
 
 
