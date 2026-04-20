@@ -1,3 +1,10 @@
+# [1.8.0-dev.5](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.4...v1.8.0-dev.5) (2026-04-20)
+
+
+### Bug Fixes
+
+* Re-enable strip libs feature ([#117](https://github.com/MorpheApp/morphe-cli/issues/117)) ([6d2bb94](https://github.com/MorpheApp/morphe-cli/commit/6d2bb94425e3fa040cc0d00261b77559d69e4470))
+
 # [1.8.0-dev.4](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.3...v1.8.0-dev.4) (2026-04-19)
 
 
